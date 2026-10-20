@@ -254,6 +254,7 @@ private enum class VoiceNoteStep {
     Title,
     Description,
     Reminder,
+    Category,
 }
 
 @Composable
@@ -266,7 +267,7 @@ private fun NotesListScreen(
     onCategorySelected: (String?) -> Unit,
     onAddCategory: (String) -> Boolean,
     onNewNote: () -> Unit,
-    onVoiceNote: (title: String, body: String, reminderAt: Long?) -> Unit,
+    onVoiceNote: (title: String, body: String, reminderAt: Long?, category: String) -> Unit,
     onOpenAi: () -> Unit,
     onOpenNote: (Note) -> Unit,
     onTogglePin: (Note) -> Unit,
@@ -281,7 +282,8 @@ private fun NotesListScreen(
     var voiceTitle by rememberSaveable { mutableStateOf("") }
     var voiceBody by rememberSaveable { mutableStateOf("") }
     var voiceRequest by rememberSaveable { mutableIntStateOf(0) }
-    var pendingVoiceReminder by rememberSaveable { mutableStateOf<Long?>(null) }
+    var voiceReminder by rememberSaveable { mutableStateOf<Long?>(null) }
+    var voiceCategory by rememberSaveable { mutableStateOf("") }
     var showReminderRetry by rememberSaveable { mutableStateOf(false) }
     var heardReminder by rememberSaveable { mutableStateOf("") }
 
@@ -293,24 +295,41 @@ private fun NotesListScreen(
         voiceStep = null
         voiceTitle = ""
         voiceBody = ""
-        pendingVoiceReminder = null
+        voiceReminder = null
+        voiceCategory = ""
         showReminderRetry = false
         heardReminder = ""
     }
 
-    val finishVoiceNote: (Long?) -> Unit = { reminderAt ->
+    val finishVoiceNote: () -> Unit = {
         val title = voiceTitle
         val body = voiceBody
+        val reminderAt = voiceReminder
+        val category = voiceCategory
+        if (category.isNotBlank()) onAddCategory(category)
         cancelVoiceFlow()
-        onVoiceNote(title, body, reminderAt)
+        onVoiceNote(title, body, reminderAt, category)
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) {
-        val reminderAt = pendingVoiceReminder
-        pendingVoiceReminder = null
-        if (reminderAt != null) finishVoiceNote(reminderAt)
+        finishVoiceNote()
+    }
+
+    val completeVoiceNote: () -> Unit = {
+        val needsPermission =
+            voiceReminder != null &&
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+
+        if (needsPermission) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            finishVoiceNote()
+        }
     }
 
     val voiceLauncher = rememberLauncherForActivityResult(
@@ -349,29 +368,26 @@ private fun NotesListScreen(
             VoiceNoteStep.Reminder -> {
                 voiceStep = null
                 if (isSkipReminderCommand(text)) {
-                    finishVoiceNote(null)
+                    voiceReminder = null
+                    voiceStep = VoiceNoteStep.Category
+                    voiceRequest++
                 } else {
                     val reminderAt = parseSpokenReminder(text)
                     if (reminderAt == null) {
                         heardReminder = text
                         showReminderRetry = true
                     } else {
-                        pendingVoiceReminder = reminderAt
-                        val needsPermission =
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS,
-                            ) != PackageManager.PERMISSION_GRANTED
-
-                        if (needsPermission) {
-                            notificationPermissionLauncher.launch(
-                                Manifest.permission.POST_NOTIFICATIONS,
-                            )
-                        } else {
-                            finishVoiceNote(reminderAt)
-                        }
+                        voiceReminder = reminderAt
+                        voiceStep = VoiceNoteStep.Category
+                        voiceRequest++
                     }
                 }
+            }
+
+            VoiceNoteStep.Category -> {
+                voiceStep = null
+                voiceCategory = resolveSpokenCategory(text, categories).orEmpty()
+                completeVoiceNote()
             }
         }
     }
@@ -384,6 +400,9 @@ private fun NotesListScreen(
             VoiceNoteStep.Reminder ->
                 "Di la fecha y hora del recordatorio, por ejemplo: mañana a las 9. " +
                     "O di: sin recordatorio"
+            VoiceNoteStep.Category ->
+                "Di la categoría de la nota, por ejemplo: Trabajo. " +
+                    "O di: sin categoría"
         }
 
         lifecycleOwner.lifecycle.withResumed {
@@ -403,7 +422,8 @@ private fun NotesListScreen(
     val startVoiceCapture: () -> Unit = {
         voiceTitle = ""
         voiceBody = ""
-        pendingVoiceReminder = null
+        voiceReminder = null
+        voiceCategory = ""
         showReminderRetry = false
         heardReminder = ""
         voiceStep = VoiceNoteStep.Title
@@ -556,7 +576,9 @@ private fun NotesListScreen(
                 TextButton(
                     onClick = {
                         showReminderRetry = false
-                        finishVoiceNote(null)
+                        voiceReminder = null
+                        voiceStep = VoiceNoteStep.Category
+                        voiceRequest++
                     },
                 ) {
                     Text("Sin recordatorio")
@@ -707,7 +729,7 @@ private fun EmptyState(
                 hasQuery -> "Prueba con otra búsqueda."
                 hasCategory -> "Elige otra categoría o crea una nota nueva."
                 else -> "Toca «Nueva nota» o el micrófono. Por voz te pedirá título, " +
-                    "descripción y recordatorio."
+                    "descripción, recordatorio y categoría."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

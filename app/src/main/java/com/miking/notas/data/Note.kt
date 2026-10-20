@@ -35,7 +35,7 @@ data class Note(
         put("id", id)
         put("title", title)
         put("body", body)
-        if (category.isNotBlank()) put("category", category.trim())
+        CategoryNames.clean(category)?.let { put("category", it) }
         put("color", color)
         put("pinned", pinned)
         if (reminderAt != null) put("reminderAt", reminderAt)
@@ -63,7 +63,7 @@ data class Note(
                 id = json.optString("id").ifBlank { UUID.randomUUID().toString() },
                 title = json.optString("title"),
                 body = json.optString("body"),
-                category = json.optString("category").trim(),
+                category = CategoryNames.clean(json.optString("category")).orEmpty(),
                 color = json.optInt("color", 0).coerceIn(0, 5),
                 pinned = json.optBoolean("pinned", false),
                 reminderAt = reminderAt,

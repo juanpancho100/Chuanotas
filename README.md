@@ -4,12 +4,13 @@ App de notas en **Kotlin + Jetpack Compose + Material 3**, pensada para Xiaomi
 HyperOS y Android 16. La versión activa es el APK nativo; la PWA anterior queda
 solo como prototipo.
 
-## Versión 1.8
+## Versión 1.10
 
-Novedades respecto a la 1.7:
+Novedades respecto a la 1.9:
 
 - **Asistente de IA con DeepSeek:** nuevo botón con una chispa en el listado,
-  junto al micrófono. Es independiente del dictado por voz de siempre.
+  junto al micrófono. Es independiente del dictado por voz de siempre, que
+  sigue con sus 4 pasos.
 - **Dictado libre:** hablas una sola vez y la IA convierte lo que dijiste en
   notas con título, cuerpo, categoría y recordatorio. Si en el mismo dictado
   hay varias cosas que hacer, crea varias notas.
@@ -30,6 +31,44 @@ Novedades respecto a la 1.7:
 - **Solo Android 16 en adelante:** `minSdk 36`. La app ya no se instala en
   Android 15 o anteriores. Se eliminan las comprobaciones de versión que ya no
   hacen falta.
+
+## Versión 1.9
+
+Novedades respecto a la 1.8:
+
+- **Nota por voz en 4 pasos:** `VoiceNoteStep` añade `Category` después de
+  `Reminder`. El flujo pide título, descripción, recordatorio y categoría, y
+  conserva los cuatro pasos con `rememberSaveable`.
+- **Categoría automática:** `SpokenCategoryParser.kt` limpia fórmulas como
+  «la categoría es…» o «categoría: …» y permite omitir con «sin categoría».
+  `CategoryNames.resolve()` reutiliza la categoría existente sin distinguir
+  mayúsculas o devuelve el nombre nuevo para crearlo.
+- **Creación al guardar:** `createFromVoice()` recibe la categoría, la añade a
+  `SettingsStore` si es nueva y la asigna a la nota. No se añaden permisos.
+- **Compatibilidad:** el JSON y las preferencias no cambian; las notas antiguas
+  siguen abriéndose como **Sin categoría**.
+
+### Versión 1.8
+
+Novedades respecto a la 1.7:
+
+- **Categorías por nota:** `Note.category` es un texto opcional. Las categorías
+  disponibles se guardan en `SettingsStore` y se normalizan sin duplicados ni
+  espacios sobrantes.
+- **Editor:** fila de chips con **Sin categoría**, las categorías existentes y
+  **Nueva**. El diálogo `NewCategoryDialog` valida nombres vacíos o repetidos.
+- **Listado:** chips de filtro en la cabecera, búsqueda por categoría y etiqueta
+  visible en cada tarjeta. La nota nueva hereda el filtro activo.
+- **Ajustes → Categorías:** crear, ver el uso y eliminar categorías. Al eliminarlas
+  se quitan de las notas, pero las notas no se borran.
+- **Fondo de la vista:** `BackgroundStyle` añade presets Predeterminado, Papel,
+  Arena, Salvia, Cielo, Lavanda y Rosa. `NotasTheme` recolorea `background`,
+  `surface` y los roles `surfaceContainer*`; cada preset tiene variante clara y
+  oscura.
+- **Compatibilidad:** `category` es opcional en el JSON. Las notas antiguas se
+  leen como **Sin categoría** y el resto de campos no cambia.
+- **Sin permisos nuevos:** las categorías y el fondo se guardan en preferencias
+  locales.
 
 ### Versión 1.7
 
@@ -158,12 +197,14 @@ Novedades respecto a la 1.4:
 
 ## Funciones
 
-- Crear, editar, fijar, buscar y eliminar notas.
-- Crear una nota nueva por voz en 3 pasos: título, descripción y recordatorio.
+- Crear, editar, fijar, buscar, filtrar y eliminar notas.
+- Categorías reutilizables por nota, con filtro en el listado y gestión en Ajustes.
+- Crear una nota nueva por voz en 4 pasos: título, descripción, recordatorio y
+  categoría. La categoría se crea automáticamente si no existe.
+- Añadir texto dictado al final del cuerpo desde el editor.
 - **Asistente de IA (DeepSeek):** dictado libre que crea las notas y sus
   recordatorios, preguntas sobre tus notas y lectura de la respuesta en voz
   alta. Es opcional y se activa en Ajustes.
-- Añadir texto dictado al final del cuerpo desde el editor.
 - Pestaña **Calendario** con vista mensual y puntos en los días con recordatorios.
 - Pestaña **Hoy** con los horarios del día y navegación por días.
 - Recordatorio opcional con notificación de alarma, vibración y apertura directa
@@ -171,6 +212,8 @@ Novedades respecto a la 1.4:
   a viernes, los fines de semana o en días personalizados.
 - Ventana de calendario, hora y repetición al crear o cambiar una alarma.
 - 6 colores de nota adaptados a modo claro/oscuro.
+- 7 fondos de vista (Predeterminado, Papel, Arena, Salvia, Cielo, Lavanda y Rosa),
+  con variante clara y oscura.
 - Persistencia local en `filesDir/notes.json`, con escritura atómica.
 - Autoguardado con retardo de 350 ms y volcado inmediato al pasar a segundo plano.
 - Copia de seguridad JSON: exportar / importar y fusionar notas.
@@ -184,22 +227,22 @@ Novedades respecto a la 1.4:
 
 | Archivo | Uso |
 |---|---|
-| `dist/Notas-1.8.apk` | Versión **release firmada**. Recomendada para instalar desde cero o actualizar desde la 1.2/1.3/1.4/1.5/1.6/1.7 release. |
-| `dist/Notas-1.8-debug.apk` | Versión debug. **Úsala para actualizar la 1.0/1.1/1.2/1.3/1.4/1.5/1.6/1.7 debug sin perder las notas.** |
+| `dist/Notas-1.10.apk` | Versión **release firmada**. Recomendada para instalar desde cero o actualizar desde la 1.2 a la 1.9 release. |
+| `dist/Notas-1.10-debug.apk` | Versión debug. **Úsala para actualizar la 1.0 a la 1.9 debug sin perder las notas.** |
 
 Detalles:
 
 - Paquete: `com.miking.notas`
-- Versión: `1.8` (versionCode 9)
+- Versión: `1.10` (versionCode 11)
 - `minSdk 36` (Android 16) · `targetSdk 36` (Android 16)
 - Firma release: RSA 2048, APK Signature Scheme v2
 
 ### Actualizar sin perder notas
 
-- **1.2/1.3/1.4/1.5/1.6/1.7 release → 1.8 release:** instala `Notas-1.8.apk` encima. La
+- **1.2–1.9 release → 1.10 release:** instala `Notas-1.10.apk` encima. La
   clave de firma release es la misma.
-- **1.0/1.1/1.2/1.3/1.4/1.5/1.6/1.7 debug → 1.8 debug:** instala
-  `Notas-1.8-debug.apk` encima. La clave de debug es la misma.
+- **1.0–1.9 debug → 1.10 debug:** instala
+  `Notas-1.10-debug.apk` encima. La clave de debug es la misma.
 - **Debug → release o release → debug:** las firmas son distintas. Exporta las
   notas a JSON, desinstala, instala la otra versión e importa el JSON.
 
@@ -218,7 +261,7 @@ Solución:
 4. Importa el JSON.
 
 Otro motivo, pero con otro mensaje: si el teléfono es Android 15 o
-anterior, la app ya no se instala porque desde la 1.8 requiere Android 16.
+anterior, la app ya no se instala porque desde la 1.10 requiere Android 16.
 
 ### Instalar en HyperOS
 
@@ -230,16 +273,17 @@ anterior, la app ya no se instala porque desde la 1.8 requiere Android 16.
 Por ADB:
 
 ```bash
-adb install -r Notas-1.8-debug.apk   # conserva datos si venías de debug
-adb install -r Notas-1.8.apk         # solo si la firma release coincide
+adb install -r Notas-1.10-debug.apk   # conserva datos si venías de debug
+adb install -r Notas-1.10.apk         # solo si la firma release coincide
 ```
 
 ### Dictado por voz
 
-- El micrófono del listado inicia un flujo guiado de tres capturas:
+- El micrófono del listado inicia un flujo guiado de cuatro capturas:
   1. título;
   2. descripción;
-  3. fecha y hora del recordatorio (o «sin recordatorio»).
+  3. fecha y hora del recordatorio (o «sin recordatorio»);
+  4. categoría (o «sin categoría»).
 - El flujo usa `VoiceNoteStep` y `rememberSaveable`, y encadena las actividades
   de `RecognizerIntent` desde `LaunchedEffect`, sin abrir el micrófono desde el
   proceso de Notas.
@@ -248,10 +292,16 @@ adb install -r Notas-1.8.apk         # solo si la firma release coincide
   «25 de diciembre», cantidades relativas («en 2 horas», «en 3 días») y horas
   como «a las 9», «18:30», «9 y media», «9 de la noche» o «9 pm».
 - Si la fecha no se entiende o ya pasó, aparece un diálogo para reintentar el
-  tercer paso o guardar la nota sin recordatorio.
-- Si se elige un recordatorio, se solicita `POST_NOTIFICATIONS` antes de crear la
-  nota. Si se deniega, la nota se guarda igualmente y el editor muestra el aviso
-  para activar las notificaciones.
+  tercer paso o guardar la nota sin recordatorio. En ambos casos el flujo
+  continúa con la categoría.
+- `SpokenCategoryParser.kt` quita prefijos habituales («la categoría es»,
+  «para la categoría», «categoría:») y entiende «sin categoría», «sin etiqueta»
+  o «ninguna» como omisión. `CategoryNames.resolve()` reutiliza la categoría
+  existente sin distinguir mayúsculas; si no existe, se crea con el texto
+  dictado.
+- Si se elige un recordatorio, se solicita `POST_NOTIFICATIONS` al terminar la
+  categoría, antes de crear la nota. Si se deniega, la nota se guarda igualmente
+  y el editor muestra el aviso para activar las notificaciones.
 - El micrófono de la barra superior del editor añade el texto al final del cuerpo.
 - Si la nota no tiene título, se genera con la primera línea del dictado (máximo
   60 caracteres) para que se pueda identificar en el listado.
@@ -398,9 +448,10 @@ sdk.dir=C\:\\Users\\tu-usuario\\AppData\\Local\\Android\\Sdk
 .\gradlew.bat lintDebug
 ```
 
-Las pruebas cubren el intérprete de fechas habladas y el cálculo de la próxima
-ocurrencia de los recordatorios repetidos y del parseo de la respuesta de la IA.
-La 1.8 tiene 45 pruebas unitarias.
+Las pruebas cubren el intérprete de fechas habladas, la categoría dictada, el
+cálculo de la próxima ocurrencia de los recordatorios repetidos, la
+normalización de categorías y el parseo de la respuesta de la IA. La 1.10
+tiene 55 pruebas unitarias.
 
 ## Firma release
 
@@ -437,10 +488,11 @@ app/src/main/java/com/miking/notas/
 │   ├── DeepSeekClient.kt        # Cliente HTTP de la API de DeepSeek
 │   └── SecretStore.kt           # API key cifrada con AES-GCM en el AndroidKeyStore
 ├── data/
-│   ├── Note.kt                  # Modelo (reminderAt y repeatDays) + JSON
+│   ├── Note.kt                  # Modelo (category, reminderAt y repeatDays) + JSON
+│   ├── CategoryNames.kt         # Limpieza, deduplicado y orden de categorías
 │   ├── ReminderRepeat.kt        # Días ISO, próxima ocurrencia y ocurrencias por día
 │   ├── NotesRepository.kt       # Guardado atómico, exportar e importar
-│   └── SettingsStore.kt         # Tema, color dinámico, orden y ajustes de IA
+│   └── SettingsStore.kt         # Tema, fondo, categorías, orden y ajustes de IA
 ├── reminders/
 │   ├── ReminderScheduler.kt     # AlarmManager, exactas/inexactas y cancelación
 │   ├── ReminderReceiver.kt      # Notifica y reprograma la siguiente repetición
@@ -448,26 +500,57 @@ app/src/main/java/com/miking/notas/
 │   ├── ReminderAlarmActivity.kt # Pantalla completa, enciende display y muestra la nota
 │   └── ReminderNotifications.kt # Canal, permisos y contenido de la notificación
 └── ui/
-    ├── NotesApp.kt              # Listado, búsqueda, cuadrícula, FAB de voz y pestañas
+    ├── NotesApp.kt              # Listado, búsqueda, categorías, cuadrícula y pestañas
     ├── AiAssistantScreen.kt     # Dictado con IA, vista previa y preguntas
     ├── CalendarScreens.kt       # Calendario mensual, agenda diaria y barra inferior
-    ├── NoteEditorScreen.kt      # Editor, dictado, colores, recordatorio y compartir
+    ├── NoteEditorScreen.kt      # Editor, dictado, categoría, colores y recordatorio
+    ├── CategoryUi.kt            # Chips de categoría y diálogo de creación
     ├── ReminderPickerDialog.kt  # Calendario, hora y días de repetición
-    ├── SettingsScreen.kt        # Ajustes, recordatorios, IA y copia de seguridad
-    ├── NotesViewModel.kt        # Estado, autoguardado, dictado y programación de alarmas
+    ├── SettingsScreen.kt        # Ajustes, fondo, categorías, IA, recordatorios y copia
+    ├── NotesViewModel.kt        # Estado, autoguardado, categorías, IA y alarmas
     ├── ReminderUi.kt            # Fechas, etiquetas de repetición y accesos a ajustes
     ├── SpeechOutput.kt          # Lectura en voz alta con TextToSpeech
     ├── VoiceNoteUi.kt           # Intent de RecognizerIntent y extracción del texto
     ├── SpokenReminderParser.kt  # Intérprete de fechas/horas habladas en español
-    └── theme/Theme.kt           # Material 3, paletas y tipografía
+    ├── SpokenCategoryParser.kt  # Categoría dictada, prefijos y omisión
+    └── theme/Theme.kt           # Material 3, paletas de fondo y tipografía
 
 app/src/test/java/com/miking/notas/
+├── ai/AiModelsTest.kt           # Parseo del plan y de la respuesta de la IA
+├── data/CategoryNamesTest.kt    # Limpieza, duplicados, orden y resolución
 ├── data/ReminderRepeatTest.kt   # Pruebas de próxima ocurrencia y días repetidos
-└── ui/SpokenReminderParserTest.kt # Pruebas unitarias del intérprete de fechas
+├── ui/SpokenReminderParserTest.kt # Pruebas unitarias del intérprete de fechas
+└── ui/SpokenCategoryParserTest.kt # Pruebas de la categoría dictada
 ```
 
-`app/src/main/res/drawable/ic_mic.xml` es el icono vectorial del micrófono; no se
-usa `material-icons-extended` para mantener pequeño el APK.
+`app/src/main/res/drawable/ic_mic.xml` es el icono vectorial del micrófono y
+`ic_ai.xml` el de la chispa del asistente; no se usa `material-icons-extended`
+para mantener pequeño el APK.
+
+## Detalles técnicos de categorías y fondo
+
+- `Note.category` es un `String` vacío por defecto. Solo se escribe en
+  `notes.json` cuando no está vacío, así que el JSON antiguo sigue siendo válido.
+- `CategoryNames` limpia espacios, elimina duplicados sin distinguir mayúsculas y
+  ordena alfabéticamente. `resolve()` devuelve la variante existente que coincide
+  sin distinguir mayúsculas o el nombre limpio para una categoría nueva.
+  `SettingsStore` guarda la lista en el `StringSet` `categories` de
+  `notas_settings`.
+- Al arrancar y al importar, las categorías que aparecen en las notas se añaden a
+  la lista de ajustes. Al eliminar una categoría se quita de las notas afectadas
+  sin cambiar su fecha de edición.
+- `NotesViewModel` combina texto, categoría y orden para calcular
+  `visibleNotes`. El filtro se aplica antes de la búsqueda; la búsqueda también
+  compara el nombre de la categoría.
+- `BackgroundStyle` se guarda con la clave `background_style`. Los valores son
+  estables (`paper`, `sand`, `sage`, `sky`, `lavender`, `rose`) para que R8 no
+  rompa las preferencias.
+- `NotasTheme` parte del esquema claro/oscuro o dinámico y, si hay un fondo
+  distinto de `DEFAULT`, reemplaza `background`, `surface`, `surfaceVariant`,
+  `surfaceContainerLowest`, `surfaceContainerLow`, `surfaceContainer`,
+  `surfaceContainerHigh`, `surfaceContainerHighest` y `outlineVariant`.
+- Los iconos de la barra de estado se eligen según la luminancia del fondo
+  resultante. No se añaden permisos ni se accede a imágenes del dispositivo.
 
 ## Detalles técnicos de los recordatorios
 
@@ -538,9 +621,10 @@ usa `material-icons-extended` para mantener pequeño el APK.
   limita a uno. El primer resultado de `EXTRA_RESULTS` es el texto que se usa.
 - Si no hay actividad de reconocimiento, `launch()` lanza
   `ActivityNotFoundException`; se captura y se muestra un aviso.
-- `NotesViewModel.createFromVoice(title, body, reminderAt)` crea la nota, programa
-  el recordatorio si existe, la guarda y la abre. `appendDictation` añade el texto
-  al cuerpo y completa el título solo si estaba vacío.
+- `NotesViewModel.createFromVoice(title, body, reminderAt, category)` resuelve la
+  categoría, la crea si no existe, crea la nota, programa el recordatorio si
+  existe, la guarda y la abre. `appendDictation` añade el texto al cuerpo y
+  completa el título solo si estaba vacío.
 - No hay audio en `notes.json`, en la exportación ni en los permisos del
   manifiesto; solo se persiste el texto.
 
@@ -548,15 +632,19 @@ usa `material-icons-extended` para mantener pequeño el APK.
 
 - Todo se guarda en el almacenamiento privado de la app. No se piden permisos de
   almacenamiento.
+- Las categorías y el fondo de la vista se guardan en SharedPreferences; no se
+  envían a ningún servicio.
 - La app declara el permiso `INTERNET`, pero **solo lo usa el asistente de IA**
   y únicamente cuando tú lo activas. Sin IA activada no sale ningún dato.
 - Al usar el asistente, el texto que dictas y las notas seleccionadas como
   contexto se envían a la API de DeepSeek. Lee su política de privacidad antes
   de usarlo con contenido sensible.
 - La API key se cifra con AES-GCM y una clave guardada en el `AndroidKeyStore`,
-  así que no sale del dispositivo en texto plano.
-- El JSON exportado contiene tus notas, recordatorios y días de repetición en
-  texto plano; guárdalo en un lugar seguro.
+  así que no sale del dispositivo en texto plano. Queda además fuera de la copia
+  de seguridad en la nube: la clave del `AndroidKeyStore` no se copia, así que el
+  texto cifrado no serviría en otro teléfono.
+- El JSON exportado contiene tus notas, categorías, recordatorios y días de
+  repetición en texto plano; guárdalo en un lugar seguro.
 - Al importar, se conservan las notas actuales. Solo se añaden notas nuevas o con
   `updatedAt` más reciente.
 - Los permisos `POST_NOTIFICATIONS`, `VIBRATE`, `SCHEDULE_EXACT_ALARM`,
@@ -576,7 +664,7 @@ usa `material-icons-extended` para mantener pequeño el APK.
 
 - Posponer o marcar como hecha desde la notificación.
 - Varias alarmas por nota y horarios distintos dentro del mismo día.
-- Etiquetas/carpetas y papelera.
+- Carpetas anidadas y papelera.
 - Listas de verificación.
 - Bloqueo con huella o rostro.
 - Widget de HyperOS con Glance.
