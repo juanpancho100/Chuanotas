@@ -4,7 +4,29 @@ App de notas en **Kotlin + Jetpack Compose + Material 3**, pensada para Xiaomi
 HyperOS y Android 16. La versión activa es el APK nativo; la PWA anterior queda
 solo como prototipo.
 
-## Versión 1.7
+## Versión 1.8
+
+Novedades respecto a la 1.7:
+
+- **Asistente de IA con DeepSeek:** nuevo botón con una chispa en el listado,
+  junto al micrófono. Es independiente del dictado por voz de siempre.
+- **Dictado libre:** hablas una sola vez y la IA convierte lo que dijiste en
+  notas con título, cuerpo, categoría y recordatorio. Si en el mismo dictado
+  hay varias cosas que hacer, crea varias notas.
+- **Vista previa antes de guardar:** las notas que propone la IA se muestran con
+  una casilla cada una. Desmarca lo que no quieras y guarda el resto.
+- **Preguntas sobre tus notas:** «qué tengo que hacer hoy», «qué tengo que
+  hacer mañana», «resumen de la semana». La IA responde solo con lo que tienes
+  guardado y cita las notas que usa.
+- **Lectura en voz alta:** el botón «Escuchar» lee la respuesta con el motor de
+  síntesis del sistema. La respuesta también se puede guardar como nota.
+- **API key en Ajustes:** se introduce en *Ajustes → Inteligencia artificial* y
+  se guarda cifrada con AES-GCM y una clave del `AndroidKeyStore`. Hay un
+  botón para probar la conexión.
+- **Privacidad:** solo se envía información cuando usas el asistente, nunca por
+  tiempo. La app sigue funcionando igual sin IA y sin conexión.
+
+### Versión 1.7
 
 Novedades respecto a la 1.6:
 
@@ -133,6 +155,9 @@ Novedades respecto a la 1.4:
 
 - Crear, editar, fijar, buscar y eliminar notas.
 - Crear una nota nueva por voz en 3 pasos: título, descripción y recordatorio.
+- **Asistente de IA (DeepSeek):** dictado libre que crea las notas y sus
+  recordatorios, preguntas sobre tus notas y lectura de la respuesta en voz
+  alta. Es opcional y se activa en Ajustes.
 - Añadir texto dictado al final del cuerpo desde el editor.
 - Pestaña **Calendario** con vista mensual y puntos en los días con recordatorios.
 - Pestaña **Hoy** con los horarios del día y navegación por días.
@@ -145,30 +170,31 @@ Novedades respecto a la 1.4:
 - Autoguardado con retardo de 350 ms y volcado inmediato al pasar a segundo plano.
 - Copia de seguridad JSON: exportar / importar y fusionar notas.
 - Edge-to-edge, icono adaptativo y monocromo, y predictive back para Android 16.
-- Sin cuentas, sin internet y sin permisos de almacenamiento. No se solicita
+- Sin cuentas y sin permisos de almacenamiento. No se solicita
   permiso de micrófono: el dictado usa el servicio de voz del sistema. Solo se
-  solicitan notificaciones y alarmas cuando usas recordatorios.
+  solicitan notificaciones y alarmas cuando usas recordatorios. La app no
+  usa internet salvo que actives el asistente de IA.
 
 ## APK listo para instalar
 
 | Archivo | Uso |
 |---|---|
-| `dist/Notas-1.7.apk` | Versión **release firmada**. Recomendada para instalar desde cero o actualizar desde la 1.2/1.3/1.4/1.5/1.6 release. |
-| `dist/Notas-1.7-debug.apk` | Versión debug. **Úsala para actualizar la 1.0/1.1/1.2/1.3/1.4/1.5/1.6 debug sin perder las notas.** |
+| `dist/Notas-1.8.apk` | Versión **release firmada**. Recomendada para instalar desde cero o actualizar desde la 1.2/1.3/1.4/1.5/1.6/1.7 release. |
+| `dist/Notas-1.8-debug.apk` | Versión debug. **Úsala para actualizar la 1.0/1.1/1.2/1.3/1.4/1.5/1.6/1.7 debug sin perder las notas.** |
 
 Detalles:
 
 - Paquete: `com.miking.notas`
-- Versión: `1.7` (versionCode 8)
+- Versión: `1.8` (versionCode 9)
 - `minSdk 26` (Android 8.0) · `targetSdk 36` (Android 16)
 - Firma release: RSA 2048, APK Signature Scheme v2
 
 ### Actualizar sin perder notas
 
-- **1.2/1.3/1.4/1.5/1.6 release → 1.7 release:** instala `Notas-1.7.apk` encima. La
+- **1.2/1.3/1.4/1.5/1.6/1.7 release → 1.8 release:** instala `Notas-1.8.apk` encima. La
   clave de firma release es la misma.
-- **1.0/1.1/1.2/1.3/1.4/1.5/1.6 debug → 1.7 debug:** instala
-  `Notas-1.7-debug.apk` encima. La clave de debug es la misma.
+- **1.0/1.1/1.2/1.3/1.4/1.5/1.6/1.7 debug → 1.8 debug:** instala
+  `Notas-1.8-debug.apk` encima. La clave de debug es la misma.
 - **Debug → release o release → debug:** las firmas son distintas. Exporta las
   notas a JSON, desinstala, instala la otra versión e importa el JSON.
 
@@ -182,8 +208,8 @@ Detalles:
 Por ADB:
 
 ```bash
-adb install -r Notas-1.7-debug.apk   # conserva datos si venías de debug
-adb install -r Notas-1.7.apk         # solo si la firma release coincide
+adb install -r Notas-1.8-debug.apk   # conserva datos si venías de debug
+adb install -r Notas-1.8.apk         # solo si la firma release coincide
 ```
 
 ### Dictado por voz
@@ -213,6 +239,60 @@ adb install -r Notas-1.7.apk         # solo si la firma release coincide
   permitiendo escribir la nota con normalidad.
 - La disponibilidad, el idioma y el uso de internet dependen del servicio de voz
   del teléfono. La app no graba ni almacena audio.
+
+### Asistente de IA (DeepSeek)
+
+- Se activa en **Ajustes → Inteligencia artificial**. Es un interruptor, así que
+  la app se puede dejar tal cual está, sin IA y sin conexión.
+- La **API key** se escribe en el mismo apartado y se guarda cifrada con
+  AES-GCM usando una clave del `AndroidKeyStore`. Solo se guarda el texto
+  cifrado en las preferencias privadas de la app.
+- El botón **«Probar conexión»** manda una petición mínima a DeepSeek para
+  comprobar la key y el modelo.
+- El **botón con la chispa** del listado abre el asistente. Es independiente
+  del micrófono del dictado por voz de siempre: el de la chispa entiende
+  frases completas y las convierte en notas.
+- El micrófono del asistente usa el mismo servicio de voz del sistema, así que
+  **no se pide permiso de micrófono** y no se graba audio.
+
+Cómo funciona el dictado libre:
+
+1. Dices todo lo que tengas que hacer, sin preocuparte del orden: «mañana tengo
+   cita con el doctor y luego de eso tengo que ir a comprar pan a las 7 de la
+   noche».
+2. La IA lo convierte en una nota por cada cosa que mencionaste, con título,
+   cuerpo, categoría y recordatorio.
+3. Se muestran todas en una vista previa con una casilla cada una. Desmarca
+   lo que no quieras.
+4. Al guardar se crean las notas y se programan sus alarmas como cualquier
+   nota creada a mano.
+
+Preguntas: la pestaña **«Preguntar»** responde con lo que tienes guardado.
+«¿Qué tengo que hacer hoy?», «¿Qué tengo que hacer mañana?» o «Resumen de la
+semana». El botón **«Escuchar»** lee la respuesta con el motor de síntesis del
+sistema, y **«Guardar como nota»** la deja en el listado.
+
+Detalles técnicos:
+
+- La API es la de DeepSeek, compatible con el formato de OpenAI:
+  `POST https://api.deepseek.com/chat/completions`. El cliente usa
+  `HttpURLConnection` y `org.json`, sin dependencias nuevas.
+- El modelo por defecto es `deepseek-flash`. `deepseek-v4-pro` está
+  disponible, pero desde septiembre de 2026 sirve la misma familia y cuesta lo
+  mismo.
+- Las respuestas se piden en modo json (`response_format: json_object`). La
+  documentación de DeepSeek avisa de que este modo a veces devuelve el
+  contenido vacío, así que el cliente reintenta una vez antes de rendirse.
+- Los prompts incluyen siempre la fecha, la hora y la zona horaria del
+  dispositivo: sin eso el modelo no puede resolver «mañana» ni «el viernes».
+- **El modelo propone y la app decide.** La fecha que devuelve se valida con
+  `ReminderRepeat.sanitize()` y se descarta si ya ha pasado, salvo que la nota
+  se repita. Solo después se programa la alarma con `ReminderScheduler`.
+- Para las preguntas se eligen las notas relevantes de forma local: primero
+  las que tienen recordatorio próximo y las que comparten palabras con la
+  pregunta, y después las editadas hace más poco. Nunca se envía el
+  `notes.json` entero.
+- Una llamada cuesta alrededor de $0,0002, así que el uso real sale a céntimos.
 
 ### Recordatorios en HyperOS
 
@@ -290,7 +370,8 @@ sdk.dir=C\:\\Users\\tu-usuario\\AppData\\Local\\Android\\Sdk
 ```
 
 Las pruebas cubren el intérprete de fechas habladas y el cálculo de la próxima
-ocurrencia de los recordatorios repetidos. La 1.7 tiene 33 pruebas unitarias.
+ocurrencia de los recordatorios repetidos y del parseo de la respuesta de la IA.
+La 1.8 tiene 45 pruebas unitarias.
 
 ## Firma release
 
@@ -319,11 +400,18 @@ keyPassword=TU_CONTRASEÑA
 ```
 app/src/main/java/com/miking/notas/
 ├── MainActivity.kt              # Entrada, tema dinámico, edge-to-edge y deep link
+├── ai/
+│   ├── AiAssistant.kt           # Dictado → plan de notas y pregunta → respuesta
+│   ├── AiConfig.kt              # Modelos disponibles y nombre legible
+│   ├── AiModels.kt              # Plan, nota propuesta, respuesta y parseo del json
+│   ├── AiPrompts.kt             # Instrucciones en español y selección de contexto
+│   ├── DeepSeekClient.kt        # Cliente HTTP de la API de DeepSeek
+│   └── SecretStore.kt           # API key cifrada con AES-GCM en el AndroidKeyStore
 ├── data/
 │   ├── Note.kt                  # Modelo (reminderAt y repeatDays) + JSON
 │   ├── ReminderRepeat.kt        # Días ISO, próxima ocurrencia y ocurrencias por día
 │   ├── NotesRepository.kt       # Guardado atómico, exportar e importar
-│   └── SettingsStore.kt         # Tema, color dinámico y orden
+│   └── SettingsStore.kt         # Tema, color dinámico, orden y ajustes de IA
 ├── reminders/
 │   ├── ReminderScheduler.kt     # AlarmManager, exactas/inexactas y cancelación
 │   ├── ReminderReceiver.kt      # Notifica y reprograma la siguiente repetición
@@ -332,12 +420,14 @@ app/src/main/java/com/miking/notas/
 │   └── ReminderNotifications.kt # Canal, permisos y contenido de la notificación
 └── ui/
     ├── NotesApp.kt              # Listado, búsqueda, cuadrícula, FAB de voz y pestañas
+    ├── AiAssistantScreen.kt     # Dictado con IA, vista previa y preguntas
     ├── CalendarScreens.kt       # Calendario mensual, agenda diaria y barra inferior
     ├── NoteEditorScreen.kt      # Editor, dictado, colores, recordatorio y compartir
     ├── ReminderPickerDialog.kt  # Calendario, hora y días de repetición
-    ├── SettingsScreen.kt        # Ajustes, recordatorios y copia de seguridad
+    ├── SettingsScreen.kt        # Ajustes, recordatorios, IA y copia de seguridad
     ├── NotesViewModel.kt        # Estado, autoguardado, dictado y programación de alarmas
     ├── ReminderUi.kt            # Fechas, etiquetas de repetición y accesos a ajustes
+    ├── SpeechOutput.kt          # Lectura en voz alta con TextToSpeech
     ├── VoiceNoteUi.kt           # Intent de RecognizerIntent y extracción del texto
     ├── SpokenReminderParser.kt  # Intérprete de fechas/horas habladas en español
     └── theme/Theme.kt           # Material 3, paletas y tipografía
@@ -428,7 +518,14 @@ usa `material-icons-extended` para mantener pequeño el APK.
 ## Datos y privacidad
 
 - Todo se guarda en el almacenamiento privado de la app. No se piden permisos de
-  almacenamiento ni de internet.
+  almacenamiento.
+- La app declara el permiso `INTERNET`, pero **solo lo usa el asistente de IA**
+  y únicamente cuando tú lo activas. Sin IA activada no sale ningún dato.
+- Al usar el asistente, el texto que dictas y las notas seleccionadas como
+  contexto se envían a la API de DeepSeek. Lee su política de privacidad antes
+  de usarlo con contenido sensible.
+- La API key se cifra con AES-GCM y una clave guardada en el `AndroidKeyStore`,
+  así que no sale del dispositivo en texto plano.
 - El JSON exportado contiene tus notas, recordatorios y días de repetición en
   texto plano; guárdalo en un lugar seguro.
 - Al importar, se conservan las notas actuales. Solo se añaden notas nuevas o con

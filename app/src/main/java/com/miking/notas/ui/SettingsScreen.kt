@@ -32,11 +32,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -62,11 +64,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.miking.notas.BuildConfig
+import com.miking.notas.ai.AiConfig
 import com.miking.notas.data.AppSettings
 import com.miking.notas.data.BackgroundStyle
 import com.miking.notas.data.SortMode
@@ -82,12 +87,17 @@ import kotlinx.coroutines.launch
 internal fun SettingsScreen(
     settings: AppSettings,
     categoryUsage: Map<String, Int>,
+    aiApiKey: String,
     onThemeMode: (ThemeMode) -> Unit,
     onDynamicColor: (Boolean) -> Unit,
     onSortMode: (SortMode) -> Unit,
     onBackgroundStyle: (BackgroundStyle) -> Unit,
     onAddCategory: (String) -> Boolean,
     onDeleteCategory: (String) -> Unit,
+    onAiEnabled: (Boolean) -> Unit,
+    onAiModel: (String) -> Unit,
+    onAiApiKey: (String) -> Unit,
+    onAiTest: () -> Unit,
     onExport: (Uri) -> Unit,
     onImport: (Uri) -> Unit,
     onBack: () -> Unit,
@@ -96,6 +106,8 @@ internal fun SettingsScreen(
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
     var pendingCategoryDelete by remember { mutableStateOf<String?>(null) }
     var showNewCategory by rememberSaveable { mutableStateOf(false) }
+    var keyText by remember(aiApiKey) { mutableStateOf(aiApiKey) }
+    var keyVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var permissionsVersion by remember { mutableIntStateOf(0) }
@@ -481,6 +493,111 @@ internal fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                 )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            SectionTitle("Inteligencia artificial")
+
+            Text(
+                text = "Conecta DeepSeek para dictar tus tareas y preguntarle a la app por " +
+                    "tus notas. Solo se envía información cuando usas el asistente, " +
+                    "nunca por tiempo. Tu API key se guarda cifrada en el dispositivo.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+            )
+
+            SettingsCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onAiEnabled(!settings.aiEnabled) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Activar el asistente IA",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Aparece un botón con la chispa en el listado, junto al " +
+                                "micrófono.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = settings.aiEnabled,
+                        onCheckedChange = onAiEnabled,
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                Text(
+                    text = "API key de DeepSeek",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Se cifra con la clave del AndroidKeyStore y no sale del teléfono.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = keyText,
+                    onValueChange = {
+                        keyText = it
+                        onAiApiKey(it)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("sk-...") },
+                    singleLine = true,
+                    visualTransformation = if (keyVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        TextButton(onClick = { keyVisible = !keyVisible }) {
+                            Text(if (keyVisible) "Ocultar" else "Ver")
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Modelo",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AiConfig.MODELS.forEach { model ->
+                        FilterChip(
+                            selected = settings.aiModel == model,
+                            onClick = { onAiModel(model) },
+                            label = { Text(AiConfig.modelLabel(model)) },
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedButton(
+                    onClick = onAiTest,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Text("Probar conexión")
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

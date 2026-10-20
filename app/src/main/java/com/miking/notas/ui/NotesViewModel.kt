@@ -4,6 +4,14 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.miking.notas.ai.AiAnswer
+import com.miking.notas.ai.AiAssistant
+import com.miking.notas.ai.AiConfig
+import com.miking.notas.ai.AiException
+import com.miking.notas.ai.AiNoteDraft
+import com.miking.notas.ai.AiPlan
+import com.miking.notas.ai.DeepSeekClient
+import com.miking.notas.ai.SecretStore
 import com.miking.notas.data.AppSettings
 import com.miking.notas.data.BackgroundStyle
 import com.miking.notas.data.CategoryNames
@@ -66,10 +74,29 @@ sealed interface UiEvent {
     data class Message(val text: String) : UiEvent
 }
 
+/** En qué está el asistente de IA ahora mismo. */
+enum class AiMode { Plan, Answer }
+
+/**
+ * El estado del asistente.
+ *
+ * El plan y la respuesta viven en campos separados para que cambiar de
+ * pestaña no tire lo que ya habías hecho.
+ */
+data class AiUiState(
+    val working: AiMode? = null,
+    val plan: AiPlan? = null,
+    val answer: AiAnswer? = null,
+    val error: String? = null,
+    val errorMode: AiMode? = null,
+)
+
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = NotesRepository(application)
     private val settingsStore = SettingsStore(application)
+    private val assistant = AiAssistant()
+    private val secretStore = SecretStore(application)
 
     /**
      * Cola con capacidad 1: si se guardan varias veces seguidas solo cuenta
@@ -83,6 +110,8 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     private val _categoryFilter = MutableStateFlow<String?>(null)
     private val _editor = MutableStateFlow<EditorState?>(null)
     private val _events = MutableSharedFlow<UiEvent>(extraBufferCapacity = 8)
+    private val _aiState = MutableStateFlow(AiUiState())
+    private val _aiApiKey = MutableStateFlow(secretStore.get(AiConfig.API_KEY_SECRET).orEmpty())
 
     private var persistJob: Job? = null
 
@@ -92,6 +121,8 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     val allNotes: StateFlow<List<Note>> = _notes.asStateFlow()
     val settings: StateFlow<AppSettings> = settingsStore.settings
     val events = _events.asSharedFlow()
+    val aiState: StateFlow<AiUiState> = _aiState.asStateFlow()
+    val aiApiKey: StateFlow<String> = _aiApiKey.asStateFlow()
 
     val visibleNotes: StateFlow<List<Note>> =
         combine(_notes, _query, _categoryFilter, settings) { notes, query, category, appSettings ->
@@ -400,6 +431,178 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             updateEditor { it.copy(category = "") }
         }
     }
+
+    /* --------------------------- Asistente de IA --------------------------- */
+
+    /** Guarda la API key cifrada con la clave del AndroidKeyStore. */
+    fun setAiApiKey(value: String) {
+        val clean = value.trim()
+        secretStore.put(AiConfig.API_KEY_SECRET, clean)
+        _aiApiKey.value = clean
+    }
+
+    fun setAiEnabled(enabled: Boolean) = settingsStore.setAiEnabled(enabled)
+
+    fun setAiModel(model: String) = settingsStore.setAiModel(AiConfig.normalizeModel(model))
+
+    fun aiReset() {
+        _aiState.update { it.copy(plan = null, error = null, errorMode = null) }
+    }
+
+    /** Convierte un dictado libre en un plan de notas con recordatorios. */
+    fun aiPlan(spoken: String) {
+        val key = _aiApiKey.value
+        if (key.isBlank()) {
+            _aiState.update {
+                it.copy(
+                    working = null,
+                    error = "Añade tu API key de DeepSeek en Ajustes",
+                    errorMode = AiMode.Plan,
+                )
+            }
+            return
+        }
+
+        _aiState.update { it.copy(working = AiMode.Plan, error = null, errorMode = null) }
+
+        viewModelScope.launch {
+            val result = runCatching {
+                assistant.planFromSpeech(key, model(), spoken)
+            }
+            result.fold(
+                onSuccess = { plan ->
+                    _aiState.update {
+                        it.copy(working = null, plan = plan, error = null, errorMode = null)
+                    }
+                },
+                onFailure = { error ->
+                    _aiState.update {
+                        it.copy(working = null, error = error.aiMessage(), errorMode = AiMode.Plan)
+                    }
+                },
+            )
+        }
+    }
+
+    /** Responde una pregunta usando las notas guardadas como contexto. */
+    fun aiAsk(question: String) {
+        val key = _aiApiKey.value
+        if (key.isBlank()) {
+            _aiState.update {
+                it.copy(
+                    working = null,
+                    error = "Añade tu API key de DeepSeek en Ajustes",
+                    errorMode = AiMode.Answer,
+                )
+            }
+            return
+        }
+        if (question.isBlank()) return
+
+        _aiState.update { it.copy(working = AiMode.Answer, error = null, errorMode = null) }
+
+        viewModelScope.launch {
+            val result = runCatching {
+                assistant.answer(key, model(), question, _notes.value)
+            }
+            result.fold(
+                onSuccess = { answer ->
+                    _aiState.update {
+                        it.copy(working = null, answer = answer, error = null, errorMode = null)
+                    }
+                },
+                onFailure = { error ->
+                    _aiState.update {
+                        it.copy(working = null, error = error.aiMessage(), errorMode = AiMode.Answer)
+                    }
+                },
+            )
+        }
+    }
+
+    /** Crea las notas del plan y programa sus recordatorios. */
+    fun aiSaveDrafts(drafts: List<AiNoteDraft>) {
+        if (drafts.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val app = getApplication<Application>()
+
+        val created = drafts.map { draft ->
+            Note(
+                title = draft.title,
+                body = draft.body,
+                category = draft.category,
+                reminderAt = draft.reminderAt,
+                repeatDays = draft.repeatDays,
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+
+        _notes.update { notes -> notes + created }
+        settingsStore.addCategories(created.map { it.category })
+
+        created.forEach { note ->
+            if (note.reminderAt != null) {
+                ReminderScheduler.schedule(app, note)
+            }
+        }
+
+        persistNow()
+        _aiState.update { it.copy(plan = null) }
+        _events.tryEmit(
+            UiEvent.Message(
+                if (created.size == 1) "Nota creada" else "${created.size} notas creadas",
+            ),
+        )
+    }
+
+    /** Guarda la respuesta de la IA como una nota normal. */
+    fun aiSaveAnswer(answer: AiAnswer) {
+        val now = System.currentTimeMillis()
+        val note = Note(
+            title = answer.question.ifBlank { "Resumen" },
+            body = answer.answer,
+            createdAt = now,
+            updatedAt = now,
+        )
+
+        _notes.update { notes -> notes + note }
+        persistNow()
+        _events.tryEmit(UiEvent.Message("Resumen guardado como nota"))
+    }
+
+    /** Comprueba que la key y el modelo responden. */
+    fun aiTestConnection() {
+        val key = _aiApiKey.value
+        if (key.isBlank()) {
+            _events.tryEmit(UiEvent.Message("Primero escribe tu API key"))
+            return
+        }
+
+        viewModelScope.launch {
+            val result = runCatching {
+                DeepSeekClient(key, model()).complete(
+                    system = "Responde solo con la palabra: ok",
+                    user = "ok",
+                    maxTokens = 16,
+                )
+            }
+            _events.tryEmit(
+                UiEvent.Message(
+                    result.fold(
+                        onSuccess = { "Conexión con DeepSeek correcta" },
+                        onFailure = { it.aiMessage() },
+                    ),
+                ),
+            )
+        }
+    }
+
+    private fun model(): String = AiConfig.normalizeModel(settings.value.aiModel)
+
+    private fun Throwable.aiMessage(): String =
+        if (this is AiException) message else "No se pudo completar la petición"
 
     /* --------------------------- Exportar / importar ------------------------ */
 

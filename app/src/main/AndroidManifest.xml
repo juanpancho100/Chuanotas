@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Solo se usa para conectar con la API de DeepSeek cuando el asistente
+         de IA está activado. La app funciona igual sin conexión. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"

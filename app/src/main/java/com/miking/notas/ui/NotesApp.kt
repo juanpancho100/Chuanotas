@@ -101,6 +101,8 @@ fun NotasApp(
     val query by vm.query.collectAsStateWithLifecycle()
     val categoryFilter by vm.categoryFilter.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val aiState by vm.aiState.collectAsStateWithLifecycle()
+    val aiApiKey by vm.aiApiKey.collectAsStateWithLifecycle()
     val categoryUsage = remember(allNotes) {
         allNotes
             .filter { it.category.isNotBlank() }
@@ -111,6 +113,7 @@ fun NotasApp(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showAi by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.NOTES) }
 
     LaunchedEffect(pendingNoteId, vm) {
@@ -158,15 +161,34 @@ fun NotasApp(
         showSettings -> SettingsScreen(
             settings = settings,
             categoryUsage = categoryUsage,
+            aiApiKey = aiApiKey,
             onThemeMode = vm::setThemeMode,
             onDynamicColor = vm::setDynamicColor,
             onSortMode = vm::setSortMode,
             onBackgroundStyle = vm::setBackgroundStyle,
             onAddCategory = vm::addCategory,
             onDeleteCategory = vm::deleteCategory,
+            onAiEnabled = vm::setAiEnabled,
+            onAiModel = vm::setAiModel,
+            onAiApiKey = vm::setAiApiKey,
+            onAiTest = vm::aiTestConnection,
             onExport = vm::exportTo,
             onImport = vm::importFrom,
             onBack = { showSettings = false },
+            snackbarHostState = snackbarHostState,
+        )
+
+        showAi -> AiAssistantScreen(
+            state = aiState,
+            aiEnabled = settings.aiEnabled,
+            apiKey = aiApiKey,
+            onPlan = vm::aiPlan,
+            onAsk = vm::aiAsk,
+            onSaveDrafts = vm::aiSaveDrafts,
+            onSaveAnswer = vm::aiSaveAnswer,
+            onReset = vm::aiReset,
+            onOpenSettings = { showSettings = true },
+            onBack = { showAi = false },
             snackbarHostState = snackbarHostState,
         )
 
@@ -211,6 +233,7 @@ fun NotasApp(
             onAddCategory = vm::addCategory,
             onNewNote = vm::newNote,
             onVoiceNote = vm::createFromVoice,
+            onOpenAi = { showAi = true },
             onOpenNote = vm::openNote,
             onTogglePin = vm::togglePin,
             onDelete = vm::delete,
@@ -243,6 +266,7 @@ private fun NotesListScreen(
     onAddCategory: (String) -> Boolean,
     onNewNote: () -> Unit,
     onVoiceNote: (title: String, body: String, reminderAt: Long?) -> Unit,
+    onOpenAi: () -> Unit,
     onOpenNote: (Note) -> Unit,
     onTogglePin: (Note) -> Unit,
     onDelete: (Note) -> Unit,
@@ -398,6 +422,16 @@ private fun NotesListScreen(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                SmallFloatingActionButton(
+                    onClick = onOpenAi,
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ai),
+                        contentDescription = "Asistente de IA",
+                    )
+                }
                 SmallFloatingActionButton(
                     onClick = startVoiceCapture,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
