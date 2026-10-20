@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.miking.notas.data.CategoryNames
 
 /** Chips horizontales para elegir o crear una categoría. */
 @Composable
@@ -105,9 +106,9 @@ internal fun NewCategoryDialog(
             TextButton(
                 enabled = name.isNotBlank(),
                 onClick = {
-                    val clean = name.trim().replace(Regex("\\s+"), " ")
+                    val clean = CategoryNames.clean(name)
                     when {
-                        clean.isEmpty() -> error = "Escribe un nombre"
+                        clean == null -> error = "Escribe un nombre"
                         existing.any { it.equals(clean, ignoreCase = true) } ->
                             error = "Ya existe una categoría con ese nombre"
 

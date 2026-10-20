@@ -51,7 +51,7 @@ data class EditorState(
         id = id,
         title = title.trim(),
         body = body,
-        category = category.trim(),
+        category = CategoryNames.clean(category).orEmpty(),
         color = color,
         pinned = pinned,
         reminderAt = reminderAt,
@@ -143,9 +143,10 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Crea una nota con los datos capturados por voz y la abre para revisarla.
+     * La categoría se resuelve contra las existentes y, si es nueva, se crea.
      * El recordatorio es opcional; si existe, se programa antes de guardar.
      */
-    fun createFromVoice(title: String, body: String, reminderAt: Long?) {
+    fun createFromVoice(title: String, body: String, reminderAt: Long?, category: String) {
         val cleanTitle = title.trim()
         val cleanBody = body.trim()
         if (cleanTitle.isEmpty() && cleanBody.isEmpty()) {
@@ -157,10 +158,15 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
         val now = System.currentTimeMillis()
         val normalizedReminder = reminderAt?.takeIf { it > now }
+        val cleanCategory = CategoryNames
+            .resolve(settingsStore.settings.value.categories, category)
+            .orEmpty()
+        if (cleanCategory.isNotEmpty()) settingsStore.addCategory(cleanCategory)
+
         val note = Note(
             title = cleanTitle.ifBlank { voiceTitle(cleanBody) },
             body = cleanBody,
-            category = _categoryFilter.value.orEmpty(),
+            category = cleanCategory,
             reminderAt = normalizedReminder,
             createdAt = now,
             updatedAt = now,
@@ -225,6 +231,10 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     fun restore(note: Note) {
         _notes.update { notes ->
             if (notes.any { it.id == note.id }) notes else notes + note
+        }
+
+        if (note.category.isNotBlank()) {
+            settingsStore.addCategory(note.category)
         }
 
         if (note.reminderAt != null) {

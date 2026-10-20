@@ -14,6 +14,15 @@ object CategoryNames {
     fun contains(values: Iterable<String>, name: String): Boolean =
         values.any { it.equals(name, ignoreCase = true) }
 
+    /**
+     * Devuelve la categoría existente que coincide sin distinguir mayúsculas
+     * o, si no existe, el nombre limpio para crearla.
+     */
+    fun resolve(values: Iterable<String>, name: String): String? {
+        val clean = clean(name) ?: return null
+        return values.firstOrNull { it.equals(clean, ignoreCase = true) } ?: clean
+    }
+
     fun normalize(values: Iterable<String>): List<String> {
         val seen = mutableSetOf<String>()
         val result = mutableListOf<String>()
