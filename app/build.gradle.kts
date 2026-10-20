@@ -70,6 +70,18 @@ android {
     }
 }
 
+// Sin el keystore el APK de release sale sin firmar y Android lo rechaza con
+// un mensaje poco descriptivo. Aqui se avisa antes de compilar.
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    doFirst {
+        check(keystorePropertiesFile.exists()) {
+            "Falta keystore.properties: el APK de release saldría sin firmar y " +
+                "Android no lo instalaría. Copia el fichero y la carpeta keystore/ " +
+                "del proyecto original."
+        }
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
