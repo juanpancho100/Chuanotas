@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Las notas sí se guardan en la copia de seguridad, pero la API key no.
+  Va cifrada con una clave del AndroidKeyStore, que no se copia al nube, así
+  que el texto guardado en el dispositivo ya no serviría en otro teléfono.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="notas_secrets.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="notas_secrets.xml" />
+    </device-transfer>
+</data-extraction-rules>

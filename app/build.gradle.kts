@@ -18,10 +18,10 @@ android {
 
     defaultConfig {
         applicationId = "com.miking.notas"
-        minSdk = 26
+        minSdk = 36
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.9"
+        versionCode = 11
+        versionName = "1.10"
     }
 
     signingConfigs {
@@ -87,4 +87,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+
+    // org.json solo hace falta en las pruebas: en el dispositivo lo aporta
+    // el framework de Android.
+    testImplementation("org.json:json:20260814")
 }

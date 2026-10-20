@@ -12,7 +12,6 @@ import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -32,8 +31,6 @@ object ReminderNotifications {
     private val ALARM_VIBRATION = longArrayOf(0, 700, 300, 700, 300, 1200, 300, 700, 300, 700)
 
     fun ensureChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
 
         val audioAttributes = AudioAttributes.Builder()
@@ -64,8 +61,7 @@ object ReminderNotifications {
     }
 
     fun canPostNotifications(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
+        if (ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED
@@ -75,12 +71,10 @@ object ReminderNotifications {
 
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
-            val channel = manager?.getNotificationChannel(CHANNEL_ID)
-            if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
-                return false
-            }
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val channel = manager?.getNotificationChannel(CHANNEL_ID)
+        if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
+            return false
         }
 
         return true
@@ -88,11 +82,9 @@ object ReminderNotifications {
 
     /**
      * Android 14+ exige permiso para que una notificación pueda abrir una
-     * pantalla completa sobre el bloqueo. En versiones anteriores es automático.
+     * pantalla completa sobre el bloqueo.
      */
     fun canUseFullScreenIntent(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
-
         val manager = context.getSystemService(NotificationManager::class.java) ?: return false
         return manager.canUseFullScreenIntent()
     }

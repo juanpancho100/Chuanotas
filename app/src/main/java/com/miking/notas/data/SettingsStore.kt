@@ -10,6 +10,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 enum class SortMode { UPDATED, CREATED, TITLE }
 
+private const val DEFAULT_AI_MODEL = "deepseek-flash"
+
 /** Fondos de la vista. Se adaptan al modo claro u oscuro. */
 enum class BackgroundStyle(
     val storageValue: String,
@@ -36,6 +38,9 @@ data class AppSettings(
     val sortMode: SortMode = SortMode.UPDATED,
     val backgroundStyle: BackgroundStyle = BackgroundStyle.DEFAULT,
     val categories: List<String> = emptyList(),
+    val aiEnabled: Boolean = false,
+    val aiModel: String = DEFAULT_AI_MODEL,
+    val aiAutoSpeak: Boolean = true,
 )
 
 /**
@@ -58,6 +63,12 @@ class SettingsStore(context: Context) {
 
     fun setBackgroundStyle(style: BackgroundStyle) =
         update(_settings.value.copy(backgroundStyle = style))
+
+    fun setAiEnabled(enabled: Boolean) = update(_settings.value.copy(aiEnabled = enabled))
+
+    fun setAiModel(model: String) = update(_settings.value.copy(aiModel = model))
+
+    fun setAiAutoSpeak(enabled: Boolean) = update(_settings.value.copy(aiAutoSpeak = enabled))
 
     /**
      * Añade una categoría nueva. Devuelve false si el nombre está vacío o ya
@@ -96,6 +107,9 @@ class SettingsStore(context: Context) {
             putString(KEY_SORT, value.sortMode.storageValue)
             putString(KEY_BACKGROUND, value.backgroundStyle.storageValue)
             putStringSet(KEY_CATEGORIES, value.categories.toSet())
+            putBoolean(KEY_AI_ENABLED, value.aiEnabled)
+            putString(KEY_AI_MODEL, value.aiModel)
+            putBoolean(KEY_AI_AUTO_SPEAK, value.aiAutoSpeak)
         }
     }
 
@@ -107,6 +121,9 @@ class SettingsStore(context: Context) {
         categories = CategoryNames.normalize(
             prefs.getStringSet(KEY_CATEGORIES, emptySet()).orEmpty(),
         ),
+        aiEnabled = prefs.getBoolean(KEY_AI_ENABLED, false),
+        aiModel = prefs.getString(KEY_AI_MODEL, DEFAULT_AI_MODEL) ?: DEFAULT_AI_MODEL,
+        aiAutoSpeak = prefs.getBoolean(KEY_AI_AUTO_SPEAK, true),
     )
 
     /**
@@ -145,5 +162,8 @@ class SettingsStore(context: Context) {
         const val KEY_SORT = "sort_mode"
         const val KEY_BACKGROUND = "background_style"
         const val KEY_CATEGORIES = "categories"
+        const val KEY_AI_ENABLED = "ai_enabled"
+        const val KEY_AI_MODEL = "ai_model"
+        const val KEY_AI_AUTO_SPEAK = "ai_auto_speak"
     }
 }

@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -155,7 +154,7 @@ internal fun NoteEditorScreen(
     }
 
     val askForReminder: () -> Unit = {
-        val permissionMissing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        val permissionMissing =
             ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS,
@@ -593,7 +592,7 @@ private fun ReminderSection(
                 }
             }
 
-            if (!exactAlarmsAllowed && !isPast && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!exactAlarmsAllowed && !isPast) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
