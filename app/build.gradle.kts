@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         applicationId = "com.miking.notas"
-        minSdk = 26
+        minSdk = 36
         targetSdk = 36
         versionCode = 9
         versionName = "1.8"

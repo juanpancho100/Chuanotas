@@ -1,7 +1,6 @@
 package com.miking.notas.ui
 
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -192,10 +191,7 @@ internal fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(
-                            enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-                            onClick = { onDynamicColor(!settings.dynamicColor) },
-                        )
+                        .clickable { onDynamicColor(!settings.dynamicColor) }
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -205,18 +201,13 @@ internal fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                "Usa los colores del fondo de pantalla"
-                            } else {
-                                "Requiere Android 12 o superior"
-                            },
+                            text = "Usa los colores del fondo de pantalla",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Switch(
                         checked = settings.dynamicColor,
-                        enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
                         onCheckedChange = onDynamicColor,
                     )
                 }
@@ -354,27 +345,20 @@ internal fun SettingsScreen(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    StatusRow(
-                        title = "Alarmas exactas",
-                        subtitle = if (exactAlarmsAllowed) {
-                            "Activadas: el aviso llega a la hora indicada."
-                        } else {
-                            "Desactivadas: Android puede retrasar el aviso unos minutos."
-                        },
-                        actionLabel = if (exactAlarmsAllowed) null else "Permitir",
-                        onAction = if (exactAlarmsAllowed) {
-                            null
-                        } else {
-                            { openExactAlarmSettings(context) }
-                        },
-                    )
-                } else {
-                    StatusRow(
-                        title = "Alarmas",
-                        subtitle = "Este Android programa los recordatorios a la hora indicada.",
-                    )
-                }
+                StatusRow(
+                    title = "Alarmas exactas",
+                    subtitle = if (exactAlarmsAllowed) {
+                        "Activadas: el aviso llega a la hora indicada."
+                    } else {
+                        "Desactivadas: Android puede retrasar el aviso unos minutos."
+                    },
+                    actionLabel = if (exactAlarmsAllowed) null else "Permitir",
+                    onAction = if (exactAlarmsAllowed) {
+                        null
+                    } else {
+                        { openExactAlarmSettings(context) }
+                    },
+                )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
 

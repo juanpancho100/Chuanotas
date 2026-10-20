@@ -27,6 +27,9 @@ Novedades respecto a la 1.7:
   botón para probar la conexión.
 - **Privacidad:** solo se envía información cuando usas el asistente, nunca por
   tiempo. La app sigue funcionando igual sin IA y sin conexión.
+- **Solo Android 16 en adelante:** `minSdk 36`. La app ya no se instala en
+  Android 15 o anteriores. Se eliminan las comprobaciones de versión que ya no
+  hacen falta.
 
 ### Versión 1.7
 
@@ -188,7 +191,7 @@ Detalles:
 
 - Paquete: `com.miking.notas`
 - Versión: `1.8` (versionCode 9)
-- `minSdk 26` (Android 8.0) · `targetSdk 36` (Android 16)
+- `minSdk 36` (Android 16) · `targetSdk 36` (Android 16)
 - Firma release: RSA 2048, APK Signature Scheme v2
 
 ### Actualizar sin perder notas
@@ -199,6 +202,23 @@ Detalles:
   `Notas-1.8-debug.apk` encima. La clave de debug es la misma.
 - **Debug → release o release → debug:** las firmas son distintas. Exporta las
   notas a JSON, desinstala, instala la otra versión e importa el JSON.
+
+### Si al instalar dice «el paquete no es válido»
+
+Casi siempre es **firma incompatible** con la versión que ya tenías instalada.
+Android no deja sustituir una app firmada con una clave por otra distinta
+(por ejemplo, pasar de debug a release), y el instalador de HyperOS lo
+muestra con ese mensaje poco descriptivo. El APK en sí está bien.
+
+Solución:
+
+1. Exporta las notas a JSON desde *Ajustes → Copia de seguridad*.
+2. Desinstala la app: al desinstalarla se borran las notas.
+3. Instala el APK nuevo.
+4. Importa el JSON.
+
+Otro motivo, pero con otro mensaje: si el teléfono es Android 15 o
+anterior, la app ya no se instala porque desde la 1.8 requiere Android 16.
 
 ### Instalar en HyperOS
 

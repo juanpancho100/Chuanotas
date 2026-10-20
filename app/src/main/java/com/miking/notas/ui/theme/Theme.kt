@@ -3,7 +3,6 @@ package com.miking.notas.ui.theme
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -274,7 +273,7 @@ fun backgroundPreviewColor(
 
     if (style == BackgroundStyle.DEFAULT) {
         return when {
-            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            dynamicColor -> {
                 if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             }
             dark -> DarkColors
@@ -301,7 +300,7 @@ fun NotasTheme(
 
     val context = LocalContext.current
     val baseScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        dynamicColor -> {
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColors
