@@ -36,6 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -76,10 +77,12 @@ internal fun AiAssistantScreen(
     state: AiUiState,
     aiEnabled: Boolean,
     apiKey: String,
+    autoSpeak: Boolean,
     onPlan: (String) -> Unit,
     onAsk: (String) -> Unit,
     onSaveDrafts: (List<AiNoteDraft>) -> Unit,
     onSaveAnswer: (AiAnswer) -> Unit,
+    onAutoSpeakChange: (Boolean) -> Unit,
     onReset: () -> Unit,
     onOpenSettings: () -> Unit,
     onBack: () -> Unit,
@@ -87,6 +90,19 @@ internal fun AiAssistantScreen(
 ) {
     val ready = aiEnabled && apiKey.isNotBlank()
     var tab by remember { mutableStateOf(AiTab.Create) }
+    val speech = rememberSpeechOutput()
+
+    // Cada respuesta nueva se lee sola. El contador del estado hace que
+    // salte aunque la respuesta sea igual que la anterior.
+    LaunchedEffect(state.answerSeq) {
+        val answer = state.answer ?: return@LaunchedEffect
+        if (!autoSpeak) return@LaunchedEffect
+
+        val error = speech.speak(answer.answer)
+        if (error != null) {
+            snackbarHostState.showSnackbar(error)
+        }
+    }
 
     BackHandler(onBack = onBack)
 
@@ -145,8 +161,11 @@ internal fun AiAssistantScreen(
                 AiTab.Ask -> AiAskTab(
                     state = state,
                     ready = ready,
+                    speech = speech,
+                    autoSpeak = autoSpeak,
                     onAsk = onAsk,
                     onSaveAnswer = onSaveAnswer,
+                    onAutoSpeakChange = onAutoSpeakChange,
                     onOpenSettings = onOpenSettings,
                     snackbarHostState = snackbarHostState,
                 )
@@ -465,14 +484,16 @@ private fun AiDraftCard(
 private fun AiAskTab(
     state: AiUiState,
     ready: Boolean,
+    speech: SpeechOutput,
+    autoSpeak: Boolean,
     onAsk: (String) -> Unit,
     onSaveAnswer: (AiAnswer) -> Unit,
+    onAutoSpeakChange: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     snackbarHostState: SnackbarHostState,
 ) {
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
-    val speech = rememberSpeechOutput()
     var question by remember { mutableStateOf("") }
 
     val questionLauncher = rememberLauncherForActivityResult(
@@ -588,6 +609,26 @@ private fun AiAskTab(
                     Text(suggestion, style = MaterialTheme.typography.labelMedium)
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Leer la respuesta en voz alta",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Suena sola en cuanto llega la respuesta.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = autoSpeak, onCheckedChange = onAutoSpeakChange)
         }
     }
 

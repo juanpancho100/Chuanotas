@@ -89,6 +89,12 @@ data class AiUiState(
     val answer: AiAnswer? = null,
     val error: String? = null,
     val errorMode: AiMode? = null,
+    /**
+     * Sube cada vez que llega una respuesta nueva. Sirve para disparar la
+     * lectura en voz alta: dos respuestas con el mismo texto son iguales, así
+     * que sin este contador la segunda no volvería a leerse.
+     */
+    val answerSeq: Long = 0L,
 )
 
 class NotesViewModel(application: Application) : AndroidViewModel(application) {
@@ -445,6 +451,8 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAiModel(model: String) = settingsStore.setAiModel(AiConfig.normalizeModel(model))
 
+    fun setAiAutoSpeak(enabled: Boolean) = settingsStore.setAiAutoSpeak(enabled)
+
     fun aiReset() {
         _aiState.update { it.copy(plan = null, error = null, errorMode = null) }
     }
@@ -508,7 +516,13 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             result.fold(
                 onSuccess = { answer ->
                     _aiState.update {
-                        it.copy(working = null, answer = answer, error = null, errorMode = null)
+                        it.copy(
+                            working = null,
+                            answer = answer,
+                            error = null,
+                            errorMode = null,
+                            answerSeq = it.answerSeq + 1,
+                        )
                     }
                 },
                 onFailure = { error ->

@@ -18,8 +18,10 @@ Novedades respecto a la 1.7:
 - **Preguntas sobre tus notas:** «qué tengo que hacer hoy», «qué tengo que
   hacer mañana», «resumen de la semana». La IA responde solo con lo que tienes
   guardado y cita las notas que usa.
-- **Lectura en voz alta:** el botón «Escuchar» lee la respuesta con el motor de
-  síntesis del sistema. La respuesta también se puede guardar como nota.
+- **Lectura en voz alta:** la respuesta se lee sola en cuanto llega. En la
+  pestaña «Preguntar» hay un interruptor para desactivar la lectura
+  automática, y el botón «Escuchar» para repetirla cuando quieras. La
+  respuesta también se puede guardar como nota.
 - **API key en Ajustes:** se introduce en *Ajustes → Inteligencia artificial* y
   se guarda cifrada con AES-GCM y una clave del `AndroidKeyStore`. Hay un
   botón para probar la conexión.
@@ -269,8 +271,10 @@ Cómo funciona el dictado libre:
 
 Preguntas: la pestaña **«Preguntar»** responde con lo que tienes guardado.
 «¿Qué tengo que hacer hoy?», «¿Qué tengo que hacer mañana?» o «Resumen de la
-semana». El botón **«Escuchar»** lee la respuesta con el motor de síntesis del
-sistema, y **«Guardar como nota»** la deja en el listado.
+semana». La respuesta **se lee sola en cuanto llega**, con el motor de síntesis
+del sistema. El interruptor «Leer la respuesta en voz alta» apaga esa lectura
+automática, y el botón **«Escuchar»** la repite cuando quieras. **«Guardar como
+nota»** la deja en el listado.
 
 Detalles técnicos:
 
@@ -292,6 +296,11 @@ Detalles técnicos:
   las que tienen recordatorio próximo y las que comparten palabras con la
   pregunta, y después las editadas hace más poco. Nunca se envía el
   `notes.json` entero.
+- La lectura en voz alta usa `TextToSpeech` del sistema, sin permisos. La
+  respuesta lleva un contador (`answerSeq`) que sube en cada consulta, así que
+  se relee aunque el texto sea idéntico al de la respuesta anterior. El motor
+  de voz vive en la pantalla del asistente, de modo que la lectura salta
+  aunque cambies de pestaña.
 - Una llamada cuesta alrededor de $0,0002, así que el uso real sale a céntimos.
 
 ### Recordatorios en HyperOS

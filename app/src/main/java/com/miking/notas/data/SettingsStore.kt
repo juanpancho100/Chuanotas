@@ -40,6 +40,7 @@ data class AppSettings(
     val categories: List<String> = emptyList(),
     val aiEnabled: Boolean = false,
     val aiModel: String = DEFAULT_AI_MODEL,
+    val aiAutoSpeak: Boolean = true,
 )
 
 /**
@@ -66,6 +67,8 @@ class SettingsStore(context: Context) {
     fun setAiEnabled(enabled: Boolean) = update(_settings.value.copy(aiEnabled = enabled))
 
     fun setAiModel(model: String) = update(_settings.value.copy(aiModel = model))
+
+    fun setAiAutoSpeak(enabled: Boolean) = update(_settings.value.copy(aiAutoSpeak = enabled))
 
     /**
      * Añade una categoría nueva. Devuelve false si el nombre está vacío o ya
@@ -106,6 +109,7 @@ class SettingsStore(context: Context) {
             putStringSet(KEY_CATEGORIES, value.categories.toSet())
             putBoolean(KEY_AI_ENABLED, value.aiEnabled)
             putString(KEY_AI_MODEL, value.aiModel)
+            putBoolean(KEY_AI_AUTO_SPEAK, value.aiAutoSpeak)
         }
     }
 
@@ -119,6 +123,7 @@ class SettingsStore(context: Context) {
         ),
         aiEnabled = prefs.getBoolean(KEY_AI_ENABLED, false),
         aiModel = prefs.getString(KEY_AI_MODEL, DEFAULT_AI_MODEL) ?: DEFAULT_AI_MODEL,
+        aiAutoSpeak = prefs.getBoolean(KEY_AI_AUTO_SPEAK, true),
     )
 
     /**
@@ -159,5 +164,6 @@ class SettingsStore(context: Context) {
         const val KEY_CATEGORIES = "categories"
         const val KEY_AI_ENABLED = "ai_enabled"
         const val KEY_AI_MODEL = "ai_model"
+        const val KEY_AI_AUTO_SPEAK = "ai_auto_speak"
     }
 }
