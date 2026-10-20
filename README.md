@@ -466,7 +466,9 @@ keystore.properties
 copia de ambos archivos**: si pierdes la clave no podrás actualizar la app instalada
 sin desinstalarla antes.
 
-Para usar otra clave, edita `keystore.properties`:
+Para usar otra clave, copia `keystore.properties.example` como
+`keystore.properties` y rellénalo. La plantilla trae el comando de `keytool`
+para generar el `.jks` desde cero:
 
 ```properties
 storeFile=keystore/notas-release.jks
@@ -474,6 +476,9 @@ storePassword=TU_CONTRASEÑA
 keyAlias=notas
 keyPassword=TU_CONTRASEÑA
 ```
+
+Si falta `keystore.properties`, el build de release **se detiene con un error**
+en vez de generar un APK sin firmar, que Android rechaza al instalar.
 
 ## Estructura
 
