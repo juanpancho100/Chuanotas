@@ -800,3 +800,65 @@ internal fun ContributionDialog(
         },
     )
 }
+
+/** Tope de gasto total del mes, con la media de los últimos meses como sugerencia. */
+@Composable
+internal fun OverallBudgetDialog(
+    currentCents: Long?,
+    suggestedCents: Long?,
+    onDismiss: () -> Unit,
+    onSave: (Long?) -> Unit,
+) {
+    var amountText by remember { mutableStateOf(currentCents?.let(Soles::toInput).orEmpty()) }
+    var error by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Presupuesto general") },
+        text = {
+            Column {
+                Text(
+                    text = "Cuánto quieres gastar como máximo en el mes, sumando todas las categorías.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = {
+                        amountText = it
+                        error = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Tope al mes") },
+                    prefix = { Text("S/ ") },
+                    singleLine = true,
+                    isError = error,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+                if (suggestedCents != null) {
+                    TextButton(onClick = { amountText = Soles.toInput(suggestedCents) }) {
+                        Text("Usar mi gasto medio: ${Soles.format(suggestedCents)}")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val cents = Soles.parse(amountText)
+                    if (cents == null) error = true else onSave(cents)
+                },
+            ) { Text("Guardar") }
+        },
+        dismissButton = {
+            Row {
+                if (currentCents != null) {
+                    TextButton(onClick = { onSave(null) }) {
+                        Text("Quitar", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(onClick = onDismiss) { Text("Cancelar") }
+            }
+        },
+    )
+}

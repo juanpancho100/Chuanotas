@@ -221,13 +221,17 @@ data class Goal(
     }
 }
 
-/** Todo lo que se guarda en finance.json. [budgets] va de id de categoría a límite mensual. */
+/**
+ * Todo lo que se guarda en finance.json. [budgets] va de id de categoría a
+ * límite mensual; [monthlyLimitCents] es el tope de gasto total del mes.
+ */
 data class FinanceData(
     val categories: List<FinanceCategory> = DefaultFinanceCategories.all,
     val transactions: List<Transaction> = emptyList(),
     val recurrings: List<Recurring> = emptyList(),
     val budgets: Map<String, Long> = emptyMap(),
     val goals: List<Goal> = emptyList(),
+    val monthlyLimitCents: Long? = null,
 ) {
     fun category(id: String): FinanceCategory? = categories.firstOrNull { it.id == id }
 
@@ -238,6 +242,7 @@ data class FinanceData(
         put("recurrings", JSONArray().apply { recurrings.forEach { put(it.toJson()) } })
         put("budgets", JSONObject().apply { budgets.forEach { (id, cents) -> put(id, cents) } })
         put("goals", JSONArray().apply { goals.forEach { put(it.toJson()) } })
+        monthlyLimitCents?.let { put("monthlyLimit", it) }
     }
 
     companion object {
@@ -259,6 +264,7 @@ data class FinanceData(
                 recurrings = json.optJSONArray("recurrings").mapObjects(Recurring::fromJson),
                 budgets = budgets,
                 goals = json.optJSONArray("goals").mapObjects(Goal::fromJson),
+                monthlyLimitCents = json.optLong("monthlyLimit", 0L).takeIf { it > 0 },
             )
         }
     }

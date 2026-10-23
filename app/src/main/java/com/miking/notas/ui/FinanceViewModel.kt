@@ -90,6 +90,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
      */
     fun saveTransaction(transaction: Transaction, monthly: Boolean = false) {
         val before = budgetLevel(transaction.categoryId, transaction.month)
+        val overallBefore = FinanceStats.overallBudget(_data.value, transaction.month, LocalDate.now())?.level
 
         if (monthly && transaction.recurringId == null) {
             val recurring = Recurring(
@@ -123,6 +124,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
         if (transaction.type == EntryType.EXPENSE) {
             warnIfBudgetCrossed(transaction.categoryId, transaction.month, before)
+            warnIfOverallCrossed(transaction.month, overallBefore)
         }
     }
 
@@ -224,6 +226,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Tope de gasto total del mes. [limitCents] null o cero lo quita. */
+    fun setMonthlyLimit(limitCents: Long?) {
+        update { it.copy(monthlyLimitCents = limitCents?.takeIf { cents -> cents > 0 }) }
+    }
+
     /* ------------------------------- Metas ------------------------------- */
 
     fun saveGoal(goal: Goal) {
@@ -296,6 +303,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             BudgetLevel.WARNING -> emit(
                 "Llevas el ${(status.ratio * 100).toInt()} % del presupuesto de ${status.category.name}",
             )
+            BudgetLevel.OK -> Unit
+        }
+    }
+
+    private fun warnIfOverallCrossed(month: YearMonth, before: BudgetLevel?) {
+        val overall = FinanceStats.overallBudget(_data.value, month, LocalDate.now()) ?: return
+        if (overall.level == before) return
+
+        when (overall.level) {
+            BudgetLevel.EXCEEDED -> emit("Te pasaste del presupuesto general del mes por ${Soles.format(-overall.remainingCents)}")
+            BudgetLevel.WARNING -> emit("Llevas el ${(overall.ratio * 100).toInt()} % de tu presupuesto general del mes")
             BudgetLevel.OK -> Unit
         }
     }

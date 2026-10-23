@@ -70,6 +70,69 @@ data class GroupSplit(
     val target: Double,
 )
 
+/** Cómo se calculó la proyección de gasto a fin de mes. */
+enum class ProjectionMethod {
+    /** Gasto variable ÷ días transcurridos × días del mes. */
+    LINEAR,
+
+    /** Según qué parte del gasto variable se solía llevar a esta altura del mes. */
+    PATTERN,
+}
+
+/**
+ * Estimación del gasto total del mes y su desglose, para poder explicarla.
+ * Los pagos fijos se cuentan una vez (los ya pagados y los que faltan este
+ * mes); solo el gasto variable se extrapola.
+ */
+data class Projection(
+    val month: YearMonth,
+    val spentCents: Long,
+    /** Pagos fijos mensuales ya registrados este mes. */
+    val fixedPaidCents: Long,
+    /** Pagos fijos que aún no han llegado este mes. */
+    val fixedPendingCents: Long,
+    /** Gasto que no viene de pagos fijos. */
+    val variableSpentCents: Long,
+    /** Gasto variable estimado para el mes completo. */
+    val variableProjectedCents: Long,
+    val daysElapsed: Int,
+    val daysInMonth: Int,
+    val method: ProjectionMethod,
+    /** Con [ProjectionMethod.PATTERN]: parte del gasto variable que solías llevar hoy (0..1). */
+    val usualShareByToday: Double?,
+    /** Meses anteriores usados para el patrón. */
+    val patternMonths: Int,
+) {
+    val totalCents: Long get() = fixedPaidCents + fixedPendingCents + variableProjectedCents
+    val variableDailyCents: Long get() = if (daysElapsed > 0) variableSpentCents / daysElapsed else 0L
+}
+
+/** Presupuesto general del mes: el tope de gasto total. */
+data class OverallBudget(
+    val limitCents: Long,
+    val spentCents: Long,
+    val projectedCents: Long,
+    /** Días que quedan, contando hoy. Cero si el mes ya terminó. */
+    val daysLeft: Int,
+    /** Suma de los presupuestos por categoría, para avisar si superan el general. */
+    val categoryBudgetsCents: Long,
+    /** Pagos fijos que aún faltan este mes: ya están comprometidos. */
+    val fixedPendingCents: Long,
+) {
+    val remainingCents: Long get() = limitCents - spentCents
+    val ratio: Float get() = if (limitCents <= 0) 0f else spentCents.toFloat() / limitCents
+    val level: BudgetLevel
+        get() = when {
+            spentCents > limitCents -> BudgetLevel.EXCEEDED
+            ratio >= FinanceStats.BUDGET_WARNING_RATIO -> BudgetLevel.WARNING
+            else -> BudgetLevel.OK
+        }
+
+    /** Lo que se puede gastar al día el resto del mes sin pasarse, ya descontados los fijos pendientes. */
+    val dailyAllowanceCents: Long?
+        get() = if (daysLeft > 0) ((remainingCents - fixedPendingCents) / daysLeft).coerceAtLeast(0) else null
+}
+
 data class SuggestedCut(
     val category: FinanceCategory,
     val monthlyCents: Long,
@@ -143,16 +206,130 @@ object FinanceStats {
     }
 
     fun budgetStatuses(data: FinanceData, month: YearMonth, today: LocalDate): List<BudgetStatus> {
-        val spent = data.transactions
+        val byCategory = data.transactions
             .filter { it.month == month && it.type == EntryType.EXPENSE }
             .groupBy { it.categoryId }
-            .mapValues { (_, list) -> list.sumOf { it.amountCents } }
 
         return data.budgets.mapNotNull { (id, limit) ->
             val category = data.category(id) ?: return@mapNotNull null
-            val used = spent[id] ?: 0L
-            BudgetStatus(category, limit, used, projectMonthEnd(used, month, today))
+            val list = byCategory[id].orEmpty()
+            val used = list.sumOf { it.amountCents }
+            // Los pagos fijos no se repiten dentro del mes: solo se extrapola lo variable.
+            val fixed = list.filter { it.recurringId != null }.sumOf { it.amountCents }
+            val projected = fixed + projectMonthEnd(used - fixed, month, today)
+            BudgetStatus(category, limit, used, projected)
         }.sortedByDescending { it.ratio }
+    }
+
+    /**
+     * Proyección del gasto total del mes.
+     *
+     * Los pagos fijos (los ya registrados y los que faltan) se suman tal cual.
+     * El gasto variable se extrapola: si hay al menos [minPatternMonths] meses
+     * anteriores con datos, según la parte del gasto que solías llevar a esta
+     * altura del mes; si no, con el ritmo diario de este mes.
+     */
+    fun projectExpenses(
+        data: FinanceData,
+        month: YearMonth,
+        today: LocalDate,
+        minPatternMonths: Int = 2,
+    ): Projection {
+        val expenses = data.transactions.filter { it.month == month && it.type == EntryType.EXPENSE }
+        val spent = expenses.sumOf { it.amountCents }
+        val fixedPaid = expenses.filter { it.recurringId != null }.sumOf { it.amountCents }
+        val variable = spent - fixedPaid
+        val current = YearMonth.from(today)
+        val daysInMonth = month.lengthOfMonth()
+
+        if (month != current) {
+            // Un mes cerrado ya no se proyecta; uno futuro solo tiene lo registrado.
+            return Projection(
+                month = month,
+                spentCents = spent,
+                fixedPaidCents = fixedPaid,
+                fixedPendingCents = 0,
+                variableSpentCents = variable,
+                variableProjectedCents = variable,
+                daysElapsed = if (month.isBefore(current)) daysInMonth else 0,
+                daysInMonth = daysInMonth,
+                method = ProjectionMethod.LINEAR,
+                usualShareByToday = null,
+                patternMonths = 0,
+            )
+        }
+
+        val day = today.dayOfMonth
+        val fixedPending = data.recurrings
+            .filter { it.active && it.type == EntryType.EXPENSE && !it.start.isAfter(month) }
+            .filter { month !in it.skippedMonths }
+            .filter { recurring -> expenses.none { it.recurringId == recurring.id } }
+            .filter { it.dayOfMonth.coerceAtMost(daysInMonth) > day }
+            .sumOf { it.amountCents }
+
+        val shares = (1..3).mapNotNull { offset ->
+            usualShareByDay(data.transactions, month.minusMonths(offset.toLong()), day)
+        }
+        val usualShare = shares.takeIf { it.size >= minPatternMonths }?.average()
+
+        // Con una parte muy pequeña la división dispara la cifra: mejor el ritmo diario.
+        val (method, projectedVariable) = if (usualShare != null && usualShare >= 0.1) {
+            ProjectionMethod.PATTERN to (variable / usualShare.coerceAtMost(1.0)).roundToLong()
+        } else {
+            ProjectionMethod.LINEAR to projectMonthEnd(variable, month, today)
+        }
+
+        return Projection(
+            month = month,
+            spentCents = spent,
+            fixedPaidCents = fixedPaid,
+            fixedPendingCents = fixedPending,
+            variableSpentCents = variable,
+            variableProjectedCents = projectedVariable.coerceAtLeast(variable),
+            daysElapsed = day,
+            daysInMonth = daysInMonth,
+            method = method,
+            usualShareByToday = if (method == ProjectionMethod.PATTERN) usualShare else null,
+            patternMonths = if (method == ProjectionMethod.PATTERN) shares.size else 0,
+        )
+    }
+
+    /**
+     * Parte del gasto variable de [month] hecha hasta el día [day] (escalado
+     * si el mes es más corto). Null si ese mes no tuvo gasto variable.
+     */
+    internal fun usualShareByDay(transactions: List<Transaction>, month: YearMonth, day: Int): Double? {
+        val variable = transactions.filter {
+            it.month == month && it.type == EntryType.EXPENSE && it.recurringId == null
+        }
+        val total = variable.sumOf { it.amountCents }.takeIf { it > 0 } ?: return null
+        val cutoff = day.coerceAtMost(month.lengthOfMonth())
+        val byDay = variable.filter { it.date.dayOfMonth <= cutoff }.sumOf { it.amountCents }
+        return byDay.toDouble() / total
+    }
+
+    /** Estado del presupuesto general. Null si no hay tope definido. */
+    fun overallBudget(data: FinanceData, month: YearMonth, today: LocalDate): OverallBudget? {
+        val limit = data.monthlyLimitCents ?: return null
+        val projection = projectExpenses(data, month, today)
+        val current = YearMonth.from(today)
+        val daysLeft = when {
+            month == current -> month.lengthOfMonth() - today.dayOfMonth + 1
+            month.isAfter(current) -> month.lengthOfMonth()
+            else -> 0
+        }
+        val categoryBudgets = data.budgets
+            .filterKeys { id -> data.category(id)?.type == EntryType.EXPENSE }
+            .values.sum()
+
+        return OverallBudget(
+            limitCents = limit,
+            spentCents = projection.spentCents,
+            projectedCents = projection.totalCents,
+            daysLeft = daysLeft,
+            categoryBudgetsCents = categoryBudgets,
+            fixedPendingCents = projection.fixedPendingCents,
+        )
     }
 
     /** Gasto por categoría este mes frente al anterior, ordenado por la mayor subida. */

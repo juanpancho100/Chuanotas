@@ -29,10 +29,11 @@ Sé directo y realista. No inventes datos que no estén en el resumen.
         appendLine("Balance: ${Soles.format(summary.balanceCents)}")
         summary.savingsRate?.let { appendLine("Tasa de ahorro: ${percent(it)}") }
 
-        val projected = FinanceStats.projectMonthEnd(summary.expenseCents, month, today)
-        if (projected != summary.expenseCents) {
-            appendLine("Gasto proyectado a fin de mes: ${Soles.format(projected)}")
+        val projection = FinanceStats.projectExpenses(data, month, today)
+        if (projection.totalCents != summary.expenseCents) {
+            appendLine("Gasto proyectado a fin de mes: ${Soles.format(projection.totalCents)}")
         }
+        data.monthlyLimitCents?.let { appendLine("Presupuesto general de gasto del mes: ${Soles.format(it)}") }
         FinanceStats.movingAverageExpense(data.transactions, month)?.let {
             appendLine("Gasto medio de los 3 meses anteriores: ${Soles.format(it)}")
         }

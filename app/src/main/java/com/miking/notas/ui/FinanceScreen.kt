@@ -80,6 +80,8 @@ import com.miking.notas.finance.FinanceData
 import com.miking.notas.finance.FinanceStats
 import com.miking.notas.finance.Goal
 import com.miking.notas.finance.GoalPlan
+import com.miking.notas.finance.OverallBudget
+import com.miking.notas.finance.ProjectionMethod
 import com.miking.notas.finance.Soles
 import com.miking.notas.finance.SpendingGroup
 import com.miking.notas.finance.Transaction
@@ -120,6 +122,7 @@ internal fun FinanceScreen(
     var budgetDialog by remember { mutableStateOf<BudgetDialogRequest?>(null) }
     var goalDialog by remember { mutableStateOf<Goal?>(null) }
     var showNewGoal by rememberSaveable { mutableStateOf(false) }
+    var showOverallDialog by rememberSaveable { mutableStateOf(false) }
     var contributionGoal by remember { mutableStateOf<GoalPlan?>(null) }
     val today = LocalDate.now()
 
@@ -215,6 +218,7 @@ internal fun FinanceScreen(
                     month = month,
                     today = today,
                     onEdit = { budgetDialog = BudgetDialogRequest(it) },
+                    onEditOverall = { showOverallDialog = true },
                 )
 
                 FinanceTab.GOALS -> goalsTab(
@@ -279,6 +283,19 @@ internal fun FinanceScreen(
             onSave = { id, cents ->
                 vm.setBudget(id, cents)
                 budgetDialog = null
+            },
+        )
+    }
+
+    if (showOverallDialog) {
+        OverallBudgetDialog(
+            currentCents = data.monthlyLimitCents,
+            suggestedCents = FinanceStats.movingAverageExpense(data.transactions, month)
+                ?.let { (it + 99) / 100 * 100 },
+            onDismiss = { showOverallDialog = false },
+            onSave = {
+                vm.setMonthlyLimit(it)
+                showOverallDialog = false
             },
         )
     }
@@ -495,25 +512,62 @@ private fun LazyListScope.summaryTab(
         }
     }
 
-    val projected = FinanceStats.projectMonthEnd(summary.expenseCents, month, today)
+    val projection = FinanceStats.projectExpenses(data, month, today)
     val average = FinanceStats.movingAverageExpense(data.transactions, month)
     if (YearMonth.from(today) == month && summary.expenseCents > 0) {
         item(key = "projection") {
             val colors = financeColors()
+            var showHelp by rememberSaveable { mutableStateOf(false) }
+            val projected = projection.totalCents
+
             FinanceCard {
-                SectionTitle("Proyección a fin de mes")
+                TitleWithHelp(
+                    title = "Proyección a fin de mes",
+                    helpDescription = "¿Cómo se calcula la proyección?",
+                    onHelp = { showHelp = true },
+                )
                 Text(
-                    text = "A este ritmo gastarás ${Soles.format(projected)} este mes.",
+                    text = "Si sigues así, gastarás unos ${Soles.format(projected)} este mes.",
                     style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = "Es una estimación, no dinero gastado: llevas ${Soles.format(projection.spentCents)}.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Text(
+                    text = when (projection.method) {
+                        ProjectionMethod.PATTERN ->
+                            "Según cómo gastaste en tus últimos ${projection.patternMonths} meses."
+                        ProjectionMethod.LINEAR -> "Según tu ritmo de gasto de este mes."
+                    } + if (projection.fixedPaidCents + projection.fixedPendingCents > 0) {
+                        " Los pagos fijos se cuentan una sola vez."
+                    } else {
+                        ""
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (average != null && average > 0) {
                     val diff = (projected - average).toDouble() / average
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Tu media de los últimos meses es ${Soles.format(average)} " +
                             "(${signedPercent(diff)}).",
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (diff > 0.05) colors.badText else colors.goodText,
+                    )
+                }
+                data.monthlyLimitCents?.let { limit ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    StatusLine(
+                        level = if (projected > limit) BudgetLevel.WARNING else BudgetLevel.OK,
+                        text = if (projected > limit) {
+                            "Superarías tu presupuesto general (${Soles.format(limit)}) por ${Soles.format(projected - limit)}."
+                        } else {
+                            "Dentro de tu presupuesto general de ${Soles.format(limit)}."
+                        },
                     )
                 }
                 if (summary.incomeCents > 0 && projected > summary.incomeCents) {
@@ -523,6 +577,10 @@ private fun LazyListScope.summaryTab(
                         text = "Superarías tus ingresos del mes por ${Soles.format(projected - summary.incomeCents)}.",
                     )
                 }
+            }
+
+            if (showHelp) {
+                ProjectionHelpDialog(projection = projection, onDismiss = { showHelp = false })
             }
         }
     }
@@ -832,46 +890,122 @@ private fun LazyListScope.budgetsTab(
     month: YearMonth,
     today: LocalDate,
     onEdit: (String) -> Unit,
+    onEditOverall: () -> Unit,
 ) {
     val statuses = FinanceStats.budgetStatuses(data, month, today)
+    val overall = FinanceStats.overallBudget(data, month, today)
+
+    item(key = "overall") {
+        if (overall == null) {
+            FinanceCard {
+                SectionTitle("Presupuesto general")
+                Text(
+                    text = "Ponle un tope a todo lo que gastas en el mes, sin importar la categoría. " +
+                        "Te diré cuánto puedes gastar al día para no pasarte.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(onClick = onEditOverall) { Text("Definir presupuesto general") }
+            }
+        } else {
+            OverallBudgetCard(
+                overall = overall,
+                isCurrentMonth = YearMonth.from(today) == month,
+                onEdit = onEditOverall,
+            )
+        }
+    }
 
     if (statuses.isEmpty()) {
         item(key = "empty") {
             EmptyFinance(
-                title = "Sin presupuestos",
-                body = "Ponle un límite mensual a las categorías en las que quieres controlarte " +
+                title = "Sin presupuestos por categoría",
+                body = "Además del general, puedes ponerle un límite mensual a categorías concretas " +
                     "(comida, ocio, compras…). Te avisaré al llegar al 80 % y al pasarte.",
             )
         }
         return
     }
 
-    item(key = "total") {
-        val limit = statuses.sumOf { it.limitCents }
-        val spent = statuses.sumOf { it.spentCents }
-        FinanceCard {
-            Text("Total presupuestado", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                text = "${Soles.format(spent)} de ${Soles.format(limit)}",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            MeterBar(
-                fraction = if (limit > 0) spent.toFloat() / limit else 0f,
-                color = statusColor(
-                    when {
-                        spent > limit -> BudgetLevel.EXCEEDED
-                        limit > 0 && spent.toFloat() / limit >= FinanceStats.BUDGET_WARNING_RATIO -> BudgetLevel.WARNING
-                        else -> BudgetLevel.OK
-                    },
-                ),
-            )
-        }
+    item(key = "categories-title") {
+        Text(
+            text = "Por categoría",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+        )
     }
 
     items(statuses, key = { it.category.id }) { status ->
         BudgetCard(status, isCurrentMonth = YearMonth.from(today) == month, onClick = { onEdit(status.category.id) })
+    }
+}
+
+@Composable
+private fun OverallBudgetCard(
+    overall: OverallBudget,
+    isCurrentMonth: Boolean,
+    onEdit: () -> Unit,
+) {
+    var showHelp by rememberSaveable { mutableStateOf(false) }
+
+    FinanceCard(onClick = onEdit) {
+        TitleWithHelp(
+            title = "Presupuesto general",
+            helpDescription = "¿Cómo funciona el presupuesto general?",
+            onHelp = { showHelp = true },
+        )
+        Text(
+            text = "${Soles.format(overall.spentCents)} de ${Soles.format(overall.limitCents)}",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        MeterBar(fraction = overall.ratio, color = statusColor(overall.level))
+        Spacer(modifier = Modifier.height(8.dp))
+        StatusLine(
+            level = overall.level,
+            text = when (overall.level) {
+                BudgetLevel.EXCEEDED -> "Excedido por ${Soles.format(-overall.remainingCents)}"
+                BudgetLevel.WARNING ->
+                    "Cuidado: llevas el ${(overall.ratio * 100).roundToInt()} %, quedan ${Soles.format(overall.remainingCents)}"
+                BudgetLevel.OK -> "Bien: quedan ${Soles.format(overall.remainingCents)}"
+            },
+        )
+        if (isCurrentMonth) {
+            overall.dailyAllowanceCents?.let { daily ->
+                Text(
+                    text = if (daily > 0) {
+                        "Puedes gastar unos ${Soles.format(daily)} al día durante ${overall.daysLeft} " +
+                            (if (overall.daysLeft == 1) "día" else "días") + " más."
+                    } else {
+                        "No te queda margen para gastos variables este mes."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (overall.projectedCents > overall.limitCents && overall.level != BudgetLevel.EXCEEDED) {
+                Text(
+                    text = "A este ritmo llegarás a ${Soles.format(overall.projectedCents)} a fin de mes.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+        if (overall.categoryBudgetsCents > overall.limitCents) {
+            Spacer(modifier = Modifier.height(6.dp))
+            StatusLine(
+                level = BudgetLevel.WARNING,
+                text = "Tus presupuestos por categoría suman ${Soles.format(overall.categoryBudgetsCents)}, " +
+                    "más que el general.",
+            )
+        }
+    }
+
+    if (showHelp) {
+        OverallBudgetHelpDialog(overall = overall, onDismiss = { showHelp = false })
     }
 }
 
@@ -1062,6 +1196,29 @@ private fun FinanceCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             content()
+        }
+    }
+}
+
+@Composable
+private fun TitleWithHelp(
+    title: String,
+    helpDescription: String,
+    onHelp: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onHelp) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = helpDescription,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
