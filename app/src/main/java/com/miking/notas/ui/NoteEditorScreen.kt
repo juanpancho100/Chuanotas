@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,8 +75,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -96,6 +100,7 @@ internal fun NoteEditorScreen(
     onTitleChange: (String) -> Unit,
     onBodyChange: (String) -> Unit,
     onTogglePin: () -> Unit,
+    onToggleCompleted: () -> Unit,
     onColorChange: (Int) -> Unit,
     categories: List<String>,
     onCategoryChange: (String) -> Unit,
@@ -300,6 +305,7 @@ internal fun NoteEditorScreen(
                 },
                 textStyle = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,
+                    textDecoration = if (state.completed) TextDecoration.LineThrough else null,
                 ),
                 colors = editorFieldColors(),
                 maxLines = 3,
@@ -332,6 +338,13 @@ internal fun NoteEditorScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            CompletionSection(
+                completed = state.completed,
+                onToggle = onToggleCompleted,
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             CategorySection(
                 category = state.category,
                 categories = categories,
@@ -344,6 +357,7 @@ internal fun NoteEditorScreen(
             ReminderSection(
                 reminderAt = state.reminderAt,
                 repeatDays = state.repeatDays,
+                completed = state.completed,
                 exactAlarmsAllowed = exactAlarmsAllowed,
                 notificationsAllowed = notificationsAllowed,
                 onChange = askForReminder,
@@ -366,7 +380,10 @@ internal fun NoteEditorScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
-                textStyle = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    lineHeight = 24.sp,
+                    textDecoration = if (state.completed) TextDecoration.LineThrough else null,
+                ),
                 colors = editorFieldColors(),
             )
 
@@ -449,6 +466,61 @@ internal fun NoteEditorScreen(
 }
 
 @Composable
+private fun CompletionSection(
+    completed: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .toggleable(
+                value = completed,
+                role = Role.Checkbox,
+                onValueChange = { onToggle() },
+            ),
+        shape = RoundedCornerShape(18.dp),
+        color = if (completed) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 10.dp, top = 8.dp, end = 14.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(
+                checked = completed,
+                onCheckedChange = null,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (completed) "Nota completada" else "Marcar como completada",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (completed) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+                Text(
+                    text = if (completed) {
+                        "Se muestra tachada y su recordatorio está detenido."
+                    } else {
+                        "Se tachará y se detendrá su recordatorio."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CategorySection(
     category: String,
     categories: List<String>,
@@ -490,6 +562,7 @@ private fun CategorySection(
 private fun ReminderSection(
     reminderAt: Long?,
     repeatDays: Set<Int>,
+    completed: Boolean,
     exactAlarmsAllowed: Boolean,
     notificationsAllowed: Boolean,
     onChange: () -> Unit,
@@ -515,11 +588,15 @@ private fun ReminderSection(
         return
     }
 
-    val nextAt = ReminderRepeat.nextOccurrence(
-        anchor = reminderAt,
-        days = repeatDays,
-        now = System.currentTimeMillis(),
-    )
+    val nextAt = if (completed) {
+        null
+    } else {
+        ReminderRepeat.nextOccurrence(
+            anchor = reminderAt,
+            days = repeatDays,
+            now = System.currentTimeMillis(),
+        )
+    }
     val isPast = nextAt == null
     val shownAt = nextAt ?: reminderAt
 
@@ -545,12 +622,11 @@ private fun ReminderSection(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (isPast) {
-                            "Recordatorio vencido"
-                        } else if (repeatDays.isNotEmpty()) {
-                            "Recordatorio repetido"
-                        } else {
-                            "Recordatorio"
+                        text = when {
+                            completed -> "Recordatorio detenido"
+                            isPast -> "Recordatorio vencido"
+                            repeatDays.isNotEmpty() -> "Recordatorio repetido"
+                            else -> "Recordatorio"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -561,7 +637,9 @@ private fun ReminderSection(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = if (repeatDays.isEmpty()) {
+                        text = if (completed) {
+                            "Se activará al desmarcar la nota"
+                        } else if (repeatDays.isEmpty()) {
                             "Una vez"
                         } else {
                             "Se repite: ${repeatDaysLabel(repeatDays)}"
@@ -592,7 +670,7 @@ private fun ReminderSection(
                 }
             }
 
-            if (!exactAlarmsAllowed && !isPast) {
+            if (!exactAlarmsAllowed && !isPast && !completed) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -610,7 +688,13 @@ private fun ReminderSection(
             }
 
             TextButton(onClick = onChange) {
-                Text(if (isPast) "Programar otra vez" else "Cambiar fecha, hora y repetición")
+                Text(
+                    if (isPast && !completed) {
+                        "Programar otra vez"
+                    } else {
+                        "Cambiar fecha, hora y repetición"
+                    },
+                )
             }
         }
     }

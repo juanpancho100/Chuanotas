@@ -1,5 +1,8 @@
 package com.miking.notas.ui
 
+import android.app.Activity
+import android.content.Intent
+import android.media.RingtoneManager
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -67,12 +71,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.miking.notas.BuildConfig
 import com.miking.notas.ai.AiConfig
 import com.miking.notas.data.AppSettings
 import com.miking.notas.data.BackgroundStyle
+import com.miking.notas.data.CategoryAlarmSounds
 import com.miking.notas.data.SortMode
 import com.miking.notas.data.ThemeMode
 import com.miking.notas.reminders.ReminderNotifications
@@ -92,6 +98,7 @@ internal fun SettingsScreen(
     onSortMode: (SortMode) -> Unit,
     onBackgroundStyle: (BackgroundStyle) -> Unit,
     onAddCategory: (String) -> Boolean,
+    onCategorySound: (String, String) -> Unit,
     onDeleteCategory: (String) -> Unit,
     onAiEnabled: (Boolean) -> Unit,
     onAiModel: (String) -> Unit,
@@ -104,12 +111,22 @@ internal fun SettingsScreen(
 ) {
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
     var pendingCategoryDelete by remember { mutableStateOf<String?>(null) }
+    var pendingSoundCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var showNewCategory by rememberSaveable { mutableStateOf(false) }
     var keyText by remember(aiApiKey) { mutableStateOf(aiApiKey) }
     var keyVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var permissionsVersion by remember { mutableIntStateOf(0) }
+
+    val categorySoundLabels = remember(settings.categories, settings.categoryAlarmSounds) {
+        settings.categories.associateWith { category ->
+            val uri = settings.categoryAlarmSounds.entries
+                .firstOrNull { it.key.equals(category, ignoreCase = true) }
+                ?.value
+            CategoryAlarmSounds.displayName(context, uri)
+        }
+    }
 
     val notificationsAllowed = remember(permissionsVersion) {
         ReminderNotifications.canPostNotifications(context)
@@ -139,6 +156,51 @@ internal fun SettingsScreen(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) pendingImport = uri
+    }
+
+    val soundLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val category = pendingSoundCategory
+        pendingSoundCategory = null
+
+        if (result.resultCode != Activity.RESULT_OK || category == null) {
+            return@rememberLauncherForActivityResult
+        }
+
+        pickedRingtone(result.data)?.let { uri ->
+            onCategorySound(category, uri.toString())
+        }
+    }
+
+    val openSoundPicker: (String) -> Unit = { category ->
+        val current = settings.categoryAlarmSounds.entries
+            .firstOrNull { it.key.equals(category, ignoreCase = true) }
+            ?.value
+            ?.let { it.toUri() }
+
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, CategoryAlarmSounds.defaultUri(context))
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Sonido de $category")
+            if (current != null) {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current)
+            }
+        }
+
+        pendingSoundCategory = category
+        runCatching {
+            soundLauncher.launch(intent)
+        }.onFailure {
+            pendingSoundCategory = null
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    "No hay un selector de sonidos disponible en este dispositivo",
+                )
+            }
+        }
     }
 
     BackHandler(onBack = onBack)
@@ -271,8 +333,9 @@ internal fun SettingsScreen(
             SectionTitle("Categorías")
 
             Text(
-                text = "Organiza tus notas por temas. Puedes asignar una categoría desde " +
-                    "la nota y filtrar el listado con los chips de la cabecera.",
+                text = "Organiza tus notas por temas. Cada categoría recibe un sonido de " +
+                    "alarma distinto; toca el lápiz para cambiarlo. Puedes asignar una " +
+                    "categoría desde la nota y filtrar el listado con los chips.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
@@ -296,6 +359,9 @@ internal fun SettingsScreen(
                             count = categoryUsage.entries
                                 .firstOrNull { it.key.equals(category, ignoreCase = true) }
                                 ?.value ?: 0,
+                            soundLabel = categorySoundLabels[category]
+                                ?: "Predeterminado del sistema",
+                            onEditSound = { openSoundPicker(category) },
                             onDelete = { pendingCategoryDelete = category },
                         )
                     }
@@ -322,10 +388,11 @@ internal fun SettingsScreen(
             SectionTitle("Recordatorios")
 
             Text(
-                text = "Cada nota puede tener una alarma opcional. Suena una vez o se " +
-                    "repite los días que elijas, con el tono de alarma del sistema. " +
-                    "También vibra y enciende la pantalla para mostrar la nota. Android 13 " +
-                    "o superior pedirá permiso para mostrar la notificación.",
+                text = "Cada nota puede tener una alarma opcional. Cuando suena, el tono " +
+                    "se reproduce durante 10 minutos, descansa 5 y vuelve a sonar hasta que " +
+                    "pulses «Abrir nota» o «Detener alarma», aunque la app esté cerrada. " +
+                    "También vibra y enciende la pantalla para mostrar la nota. Android " +
+                    "pedirá permiso para mostrar la notificación.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
@@ -731,6 +798,8 @@ internal fun SettingsScreen(
 private fun CategorySettingsRow(
     category: String,
     count: Int,
+    soundLabel: String,
+    onEditSound: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -743,11 +812,18 @@ private fun CategorySettingsRow(
             Text(text = category, style = MaterialTheme.typography.bodyLarge)
             Text(
                 text = when (count) {
-                    1 -> "1 nota"
-                    else -> "$count notas"
+                    1 -> "1 nota · Sonido: $soundLabel"
+                    else -> "$count notas · Sonido: $soundLabel"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onEditSound) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Cambiar sonido de $category",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         IconButton(onClick = onDelete) {
@@ -901,3 +977,7 @@ private fun StatusRow(
         }
     }
 }
+
+@Suppress("DEPRECATION")
+private fun pickedRingtone(data: Intent?): Uri? =
+    data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI) as? Uri

@@ -21,6 +21,7 @@ import com.miking.notas.data.ReminderRepeat
 import com.miking.notas.data.SettingsStore
 import com.miking.notas.data.SortMode
 import com.miking.notas.data.ThemeMode
+import com.miking.notas.reminders.ReminderAlarmService
 import com.miking.notas.reminders.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,6 +47,7 @@ data class EditorState(
     val category: String = "",
     val color: Int,
     val pinned: Boolean,
+    val completed: Boolean = false,
     val reminderAt: Long?,
     val repeatDays: Set<Int> = emptySet(),
     val createdAt: Long,
@@ -62,6 +64,7 @@ data class EditorState(
         category = CategoryNames.clean(category).orEmpty(),
         color = color,
         pinned = pinned,
+        completed = completed,
         reminderAt = reminderAt,
         repeatDays = repeatDays,
         createdAt = createdAt,
@@ -225,6 +228,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             category = note.category,
             color = note.color,
             pinned = note.pinned,
+            completed = note.completed,
             reminderAt = note.reminderAt,
             repeatDays = note.repeatDays,
             createdAt = note.createdAt,
@@ -258,9 +262,32 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         persistNow()
     }
 
+    /** Marca o desmarca una nota como completada desde el listado. */
+    fun toggleCompleted(note: Note) {
+        val updated = note.copy(
+            completed = !note.completed,
+            updatedAt = System.currentTimeMillis(),
+        )
+        val app = getApplication<Application>()
+
+        _notes.update { notes ->
+            notes.map { if (it.id == updated.id) updated else it }
+        }
+
+        if (updated.completed) {
+            ReminderScheduler.cancel(app, updated.id)
+            ReminderAlarmService.stopForNote(app, updated.id)
+        } else if (updated.reminderAt != null) {
+            ReminderScheduler.schedule(app, updated)
+        }
+
+        persistNow()
+    }
+
     fun delete(note: Note) {
         _notes.update { notes -> notes.filterNot { it.id == note.id } }
         ReminderScheduler.cancel(getApplication(), note.id)
+        ReminderAlarmService.stopForNote(getApplication(), note.id)
         persistNow()
         _events.tryEmit(UiEvent.NoteDeleted(note))
     }
@@ -274,7 +301,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             settingsStore.addCategory(note.category)
         }
 
-        if (note.reminderAt != null) {
+        if (note.reminderAt != null && !note.completed) {
             ReminderScheduler.schedule(getApplication(), note)
         }
 
@@ -298,6 +325,23 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun togglePinEditor() = updateEditor { it.copy(pinned = it.pinned.not()) }
 
+    /** Marca o desmarca la nota abierta y detiene o recupera su alarma. */
+    fun toggleCompletedEditor() {
+        val current = _editor.value ?: return
+        val next = current.copy(completed = !current.completed)
+        val app = getApplication<Application>()
+
+        _editor.value = next
+        syncDraft(next)
+
+        if (next.completed) {
+            ReminderScheduler.cancel(app, next.id)
+            ReminderAlarmService.stopForNote(app, next.id)
+        } else if (next.reminderAt != null) {
+            ReminderScheduler.schedule(app, next.toNote())
+        }
+    }
+
     fun setReminder(timestamp: Long?, repeatDays: Set<Int> = emptySet()) {
         val current = _editor.value ?: return
         val now = System.currentTimeMillis()
@@ -312,7 +356,11 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         syncDraft(next)
 
         if (normalized != null) {
-            ReminderScheduler.schedule(getApplication(), next.toNote())
+            if (next.completed) {
+                ReminderScheduler.cancel(getApplication(), next.id)
+            } else {
+                ReminderScheduler.schedule(getApplication(), next.toNote())
+            }
         } else {
             ReminderScheduler.cancel(getApplication(), next.id)
         }
@@ -374,7 +422,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
             val note = current.toNote()
             _notes.update { notes -> notes.filterNot { it.id == note.id } + note }
 
-            if (note.reminderAt != null) {
+            if (note.reminderAt != null && !note.completed) {
                 ReminderScheduler.schedule(app, note)
             } else {
                 ReminderScheduler.cancel(app, note.id)
@@ -401,6 +449,7 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         _notes.update { notes -> notes.filterNot { it.id == current.id } }
         _editor.value = null
         ReminderScheduler.cancel(getApplication(), current.id)
+        ReminderAlarmService.stopForNote(getApplication(), current.id)
         persistNow()
 
         if (existing != null) {
@@ -419,6 +468,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
     fun setBackgroundStyle(style: BackgroundStyle) = settingsStore.setBackgroundStyle(style)
 
     fun addCategory(name: String): Boolean = settingsStore.addCategory(name)
+
+    fun setCategorySound(category: String, uri: String?) =
+        settingsStore.setCategorySound(category, uri)
 
     /** Quita la categoría de los ajustes y de las notas que la usaban. */
     fun deleteCategory(name: String) {
@@ -686,8 +738,16 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
                 settingsStore.addCategories(imported.map { it.category })
                 persistNow()
 
+                val activeAlarmId = ReminderAlarmService.activeNoteId
+                if (activeAlarmId != null) {
+                    val activeNote = merged[activeAlarmId]
+                    if (activeNote == null || activeNote.completed) {
+                        ReminderAlarmService.stop(getApplication())
+                    }
+                }
+
                 changedNotes.forEach { note ->
-                    if (note.reminderAt != null) {
+                    if (note.reminderAt != null && !note.completed) {
                         ReminderScheduler.schedule(getApplication(), note)
                     } else {
                         ReminderScheduler.cancel(getApplication(), note.id)
@@ -771,7 +831,9 @@ class NotesViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         return filtered.sortedWith(
-            compareByDescending<Note> { it.pinned }.then(byMode),
+            compareBy<Note> { it.completed }
+                .thenByDescending { it.pinned }
+                .then(byMode),
         )
     }
 }

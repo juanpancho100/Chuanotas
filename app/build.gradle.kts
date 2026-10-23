@@ -20,8 +20,8 @@ android {
         applicationId = "com.miking.notas"
         minSdk = 36
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.10"
+        versionCode = 13
+        versionName = "1.12"
     }
 
     signingConfigs {

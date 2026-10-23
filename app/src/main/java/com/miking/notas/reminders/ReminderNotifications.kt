@@ -1,7 +1,7 @@
 package com.miking.notas.reminders
 
 import android.Manifest
-import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,10 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.media.AudioAttributes
-import android.media.RingtoneManager
-import android.net.Uri
-import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -22,41 +18,42 @@ import com.miking.notas.data.Note
 /** Canal y construcción de las notificaciones de recordatorio. */
 object ReminderNotifications {
 
-    /** Canal nuevo: Android no permite cambiar el sonido de un canal ya creado. */
-    const val CHANNEL_ID = "recordatorios_alarma_v1"
+    /**
+     * El sonido lo reproduce [ReminderAlarmService] para poder mantener el
+     * ciclo de 10 minutos sonando y 5 en silencio. El canal es silencioso para
+     * no duplicar el tono; la vibración sí la gestiona Android.
+     */
+    const val CHANNEL_ID = "recordatorios_alarma_v2"
+    private const val PREVIOUS_CHANNEL_ID = "recordatorios_alarma_v1"
     private const val LEGACY_CHANNEL_ID = "recordatorios"
-    private const val TEST_NOTIFICATION_ID = 7001
+
+    const val TEST_NOTIFICATION_ID = 7001
     private const val FULL_SCREEN_REQUEST_CODE = 0x46554C4C
+    private const val STOP_REQUEST_CODE = 0x53544F50 // "STOP"
 
     private val ALARM_VIBRATION = longArrayOf(0, 700, 300, 700, 300, 1200, 300, 700, 300, 700)
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
 
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-
-        val soundUri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: Settings.System.DEFAULT_ALARM_ALERT_URI
-
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Alarma de recordatorios",
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = "Recordatorios con tono de alarma y vibración"
-            setSound(soundUri, audioAttributes)
+            description = "Alarma continua: suena 10 minutos, descansa 5 y se repite " +
+                "hasta que la detengas."
+            setSound(null, null)
             enableVibration(true)
             vibrationPattern = ALARM_VIBRATION
             enableLights(true)
             lightColor = Color.RED
-            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setShowBadge(true)
         }
 
         manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+        manager.deleteNotificationChannel(PREVIOUS_CHANNEL_ID)
         manager.createNotificationChannel(channel)
     }
 
@@ -89,71 +86,73 @@ object ReminderNotifications {
         return manager.canUseFullScreenIntent()
     }
 
-    /** Notificación de prueba para comprobar el tono de alarma y la vibración. */
-    @SuppressLint("MissingPermission")
+    /** Prueba completa: inicia el mismo ciclo de alarma que un recordatorio. */
     fun showTest(context: Context): Boolean {
         if (!canPostNotifications(context)) return false
-
-        ensureChannel(context)
-
-        val text = "La pantalla debería encenderse y mostrar este mensaje."
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setColor(ContextCompat.getColor(context, R.color.ic_launcher_background))
-            .setContentTitle("Prueba de alarma")
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
-            .setContentIntent(ReminderScheduler.appOpenIntent(context))
-
-        if (canUseFullScreenIntent(context)) {
-            builder.setFullScreenIntent(fullScreenIntent(context, noteId = null), true)
-        }
-
-        val notification = builder.build()
-
         return runCatching {
-            NotificationManagerCompat.from(context).notify(TEST_NOTIFICATION_ID, notification)
+            ReminderAlarmService.startTest(context)
             true
         }.getOrDefault(false)
     }
 
-    @SuppressLint("MissingPermission")
-    fun show(context: Context, note: Note) {
-        if (!canPostNotifications(context)) return
+    fun alarmNotification(
+        context: Context,
+        note: Note?,
+        testMode: Boolean,
+    ): Notification {
+        val notificationId = if (testMode || note == null) {
+            TEST_NOTIFICATION_ID
+        } else {
+            ReminderScheduler.notificationId(note.id)
+        }
 
-        ensureChannel(context)
+        val preview = when {
+            testMode -> "La pantalla debería encenderse y la alarma sonar hasta que la detengas."
+            note != null -> note.preview.ifBlank { "Es hora de revisar esta nota." }
+            else -> "Es hora de revisar esta nota."
+        }
+        val title = when {
+            testMode -> "Prueba de alarma"
+            note != null -> note.displayTitle
+            else -> "Recordatorio"
+        }
 
-        val preview = note.preview.ifBlank { "Es hora de revisar esta nota." }
+        val openIntent = if (testMode || note == null) {
+            ReminderScheduler.appOpenIntent(context)
+        } else {
+            ReminderScheduler.noteOpenIntent(context, note.id)
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(ContextCompat.getColor(context, R.color.ic_launcher_background))
-            .setContentTitle(note.displayTitle)
+            .setContentTitle(title)
             .setContentText(preview)
             .setStyle(NotificationCompat.BigTextStyle().bigText(preview))
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setWhen(System.currentTimeMillis())
             .setShowWhen(true)
-            .setAutoCancel(true)
-            .setContentIntent(ReminderScheduler.noteOpenIntent(context, note.id))
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(openIntent)
+            .addAction(0, if (testMode) "Abrir Notas" else "Abrir nota", openIntent)
+            .addAction(
+                0,
+                "Detener alarma",
+                stopAlarmIntent(context, notificationId),
+            )
 
         if (canUseFullScreenIntent(context)) {
-            builder.setFullScreenIntent(fullScreenIntent(context, note.id), true)
+            builder.setFullScreenIntent(
+                fullScreenIntent(context, if (testMode) null else note?.id),
+                true,
+            )
         }
 
-        val notification = builder.build()
-
-        runCatching {
-            NotificationManagerCompat.from(context)
-                .notify(ReminderScheduler.notificationId(note.id), notification)
-        }
+        return builder.build()
     }
 
     fun cancel(context: Context, noteId: String) {
@@ -162,7 +161,26 @@ object ReminderNotifications {
     }
 
     fun cancelTest(context: Context) {
-        NotificationManagerCompat.from(context).cancel(TEST_NOTIFICATION_ID)
+        cancelById(context, TEST_NOTIFICATION_ID)
+    }
+
+    fun cancelById(context: Context, notificationId: Int) {
+        NotificationManagerCompat.from(context).cancel(notificationId)
+    }
+
+    private fun stopAlarmIntent(context: Context, notificationId: Int): PendingIntent {
+        val appContext = context.applicationContext
+        val intent = Intent(appContext, ReminderReceiver::class.java).apply {
+            action = ReminderReceiver.ACTION_STOP_ALARM
+            putExtra(ReminderAlarmService.EXTRA_NOTIFICATION_ID, notificationId)
+        }
+
+        return PendingIntent.getBroadcast(
+            appContext,
+            notificationId xor STOP_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     private fun fullScreenIntent(context: Context, noteId: String?): PendingIntent {

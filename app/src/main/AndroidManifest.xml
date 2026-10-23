@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Solo se usa para conectar con la API de DeepSeek cuando el asistente
          de IA está activado. La app funciona igual sin conexión. -->
@@ -43,6 +46,12 @@
             android:taskAffinity="com.miking.notas.alarm"
             android:theme="@style/Theme.Notas"
             android:turnScreenOn="true" />
+
+        <service
+            android:name=".reminders.ReminderAlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
 
         <receiver
             android:name=".reminders.ReminderReceiver"

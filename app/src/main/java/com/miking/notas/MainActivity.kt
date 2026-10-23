@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.miking.notas.reminders.ReminderAlarmService
 import com.miking.notas.reminders.ReminderNotifications
 import com.miking.notas.reminders.ReminderScheduler
 import com.miking.notas.ui.NotasApp
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReminderNotifications.ensureChannel(this)
+        ReminderAlarmService.stop(this)
         pendingNoteId = intent?.getStringExtra(ReminderScheduler.EXTRA_NOTE_ID)
 
         setContent {
@@ -56,6 +58,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        ReminderAlarmService.stop(this)
         pendingNoteId = intent.getStringExtra(ReminderScheduler.EXTRA_NOTE_ID)
     }
 }

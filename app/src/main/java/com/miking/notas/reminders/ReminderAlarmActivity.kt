@@ -1,9 +1,13 @@
 package com.miking.notas.reminders
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.miking.notas.data.Note
 import com.miking.notas.data.NotesRepository
 import com.miking.notas.data.reminderAtOn
@@ -49,10 +54,24 @@ class ReminderAlarmActivity : ComponentActivity() {
     private var currentNoteId: String? = null
     private var testMode by mutableStateOf(false)
 
+    private val alarmStoppedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ReminderAlarmService.ACTION_STOPPED) {
+                finish()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureWindow()
         enableEdgeToEdge()
+        ContextCompat.registerReceiver(
+            this,
+            alarmStoppedReceiver,
+            IntentFilter(ReminderAlarmService.ACTION_STOPPED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         bindIntent(intent)
 
         setContent {
@@ -88,11 +107,10 @@ class ReminderAlarmActivity : ComponentActivity() {
     private fun openCurrent() {
         val noteId = currentNoteId
 
+        stopAlarm()
         if (testMode || noteId == null) {
-            ReminderNotifications.cancelTest(this)
             startActivity(ReminderScheduler.appIntent(this))
         } else {
-            ReminderNotifications.cancel(this, noteId)
             startActivity(ReminderScheduler.noteIntent(this, noteId))
         }
 
@@ -100,15 +118,23 @@ class ReminderAlarmActivity : ComponentActivity() {
     }
 
     private fun dismissAlarm() {
-        val noteId = currentNoteId
+        stopAlarm()
+        finish()
+    }
 
-        if (testMode || noteId == null) {
+    private fun stopAlarm() {
+        ReminderAlarmService.stop(this)
+
+        if (testMode || currentNoteId == null) {
             ReminderNotifications.cancelTest(this)
         } else {
-            ReminderNotifications.cancel(this, noteId)
+            ReminderNotifications.cancel(this, currentNoteId!!)
         }
+    }
 
-        finish()
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(alarmStoppedReceiver) }
+        super.onDestroy()
     }
 
     private fun configureWindow() {
@@ -135,6 +161,8 @@ private fun AlarmScreen(
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    BackHandler { }
+
     val context = LocalContext.current
     val title = when {
         testMode -> "Prueba de alarma"
@@ -211,7 +239,17 @@ private fun AlarmScreen(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "La alarma suena 10 minutos, descansa 5 y se repite hasta que " +
+                    "pulses «Abrir nota» o «Detener alarma».",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = onOpen,

@@ -76,11 +76,13 @@ data class NoteOccurrence(
 )
 
 fun Note.nextReminderAt(now: Long = System.currentTimeMillis()): Long? {
+    if (completed) return null
     val anchor = reminderAt ?: return null
     return ReminderRepeat.nextOccurrence(anchor, repeatDays, now)
 }
 
 fun Note.reminderAtOn(date: LocalDate): Long? {
+    if (completed) return null
     val anchor = reminderAt ?: return null
     return ReminderRepeat.occurrenceOn(anchor, repeatDays, date)
 }

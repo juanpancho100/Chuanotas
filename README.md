@@ -4,6 +4,51 @@ App de notas en **Kotlin + Jetpack Compose + Material 3**, pensada para Xiaomi
 HyperOS y Android 16. La versión activa es el APK nativo; la PWA anterior queda
 solo como prototipo.
 
+## Versión 1.12
+
+Novedades respecto a la 1.11:
+
+- **Sonido de alarma por categoría:** `SettingsStore` guarda un mapa
+  `categoría → URI` en `category_alarm_sounds`. Cada categoría recibe un tono
+  automático distinto de los ya asignados.
+- **Tonos del sistema:** `CategoryAlarmSounds` consulta los tonos de
+  `RingtoneManager.TYPE_ALARM`, conserva los elegidos y reparte los libres con
+  `planCategorySounds()`. Si no hay suficientes, usa el tono predeterminado.
+- **Selector de sonido:** en **Ajustes → Categorías**, cada fila muestra su tono
+  y un lápiz que abre el selector de tonos de alarma del sistema.
+- **Reproducción correcta:** `ReminderAlarmService` resuelve el tono según la
+  categoría de la nota y lo reproduce con el ciclo 10/5. Las notas sin categoría
+  y la prueba de alarma usan el tono predeterminado.
+- **Compatibilidad:** el JSON de notas no cambia y no se añaden permisos. Los
+  sonidos se guardan en las preferencias locales.
+
+## Versión 1.11
+
+Novedades respecto a la 1.10:
+
+- **Notas completadas:** `Note.completed` se guarda en el JSON (solo cuando es
+  `true`, para no romper notas antiguas). El listado y el editor muestran una
+  casilla; al marcarla, el título y el cuerpo se tachan, la nota pasa al final
+  del listado y su recordatorio se cancela. Al desmarcarla se reprograma la
+  próxima alarma si la nota aún tiene una fecha futura.
+- **Alarma continua:** nuevo `AlarmCycle` con 10 minutos de tono y 5 de pausa.
+  El ciclo se repite indefinidamente y se prueba con `AlarmCycleTest`.
+- **Servicio en primer plano:** `ReminderAlarmService` reproduce el tono de
+  alarma con `MediaPlayer` en bucle, mantiene un `WakeLock` parcial y sigue
+  sonando con la pantalla apagada o la app cerrada. Se declara con
+  `foregroundServiceType="mediaPlayback"`.
+- **Notificación silenciosa para el ciclo:** el canal
+  `recordatorios_alarma_v2` ya no reproduce el tono de notificación; el audio lo
+  controla el servicio. La notificación sigue siendo de importancia alta, vibra
+  y tiene las acciones **Abrir nota** y **Detener alarma**.
+- **Parada explícita:** la pantalla de alarma, la notificación y la apertura de
+  la app detienen el servicio y retiran la notificación. La actividad bloquea el
+  botón Atrás para que la alarma no se detenga por accidente.
+- **Permisos normales nuevos:** `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_MEDIA_PLAYBACK` y `WAKE_LOCK`. No requieren interacción del
+  usuario ni sustituyen a los permisos de notificaciones, alarmas exactas o
+  pantalla completa.
+
 ## Versión 1.10
 
 Novedades respecto a la 1.9:
@@ -197,8 +242,11 @@ Novedades respecto a la 1.4:
 
 ## Funciones
 
-- Crear, editar, fijar, buscar, filtrar y eliminar notas.
+- Crear, editar, fijar, completar, buscar, filtrar y eliminar notas. Las notas
+  completadas se muestran tachadas y bajan al final del listado.
 - Categorías reutilizables por nota, con filtro en el listado y gestión en Ajustes.
+  Cada categoría tiene su propio sonido de alarma, editable, y las notas sin
+  categoría usan el tono predeterminado.
 - Crear una nota nueva por voz en 4 pasos: título, descripción, recordatorio y
   categoría. La categoría se crea automáticamente si no existe.
 - Añadir texto dictado al final del cuerpo desde el editor.
@@ -208,8 +256,10 @@ Novedades respecto a la 1.4:
 - Pestaña **Calendario** con vista mensual y puntos en los días con recordatorios.
 - Pestaña **Hoy** con los horarios del día y navegación por días.
 - Recordatorio opcional con notificación de alarma, vibración y apertura directa
-  de la nota. Por defecto suena una vez; puede repetirse todos los días, de lunes
-  a viernes, los fines de semana o en días personalizados.
+  de la nota. Al sonar, el tono se reproduce 10 minutos, descansa 5 y se repite
+  hasta pulsar **Abrir nota** o **Detener alarma**. Por defecto suena una vez;
+  puede repetirse todos los días, de lunes a viernes, los fines de semana o en
+  días personalizados.
 - Ventana de calendario, hora y repetición al crear o cambiar una alarma.
 - 6 colores de nota adaptados a modo claro/oscuro.
 - 7 fondos de vista (Predeterminado, Papel, Arena, Salvia, Cielo, Lavanda y Rosa),
@@ -227,22 +277,22 @@ Novedades respecto a la 1.4:
 
 | Archivo | Uso |
 |---|---|
-| `dist/Notas-1.10.apk` | Versión **release firmada**. Recomendada para instalar desde cero o actualizar desde la 1.2 a la 1.9 release. |
-| `dist/Notas-1.10-debug.apk` | Versión debug. **Úsala para actualizar la 1.0 a la 1.9 debug sin perder las notas.** |
+| `dist/Notas-1.12.apk` | Versión **release firmada**. Recomendada para instalar desde cero o actualizar desde la 1.2 a la 1.11 release. |
+| `dist/Notas-1.12-debug.apk` | Versión debug. **Úsala para actualizar la 1.0 a la 1.11 debug sin perder las notas.** |
 
 Detalles:
 
 - Paquete: `com.miking.notas`
-- Versión: `1.10` (versionCode 11)
+- Versión: `1.12` (versionCode 13)
 - `minSdk 36` (Android 16) · `targetSdk 36` (Android 16)
 - Firma release: RSA 2048, APK Signature Scheme v2
 
 ### Actualizar sin perder notas
 
-- **1.2–1.9 release → 1.10 release:** instala `Notas-1.10.apk` encima. La
+- **1.2–1.11 release → 1.12 release:** instala `Notas-1.12.apk` encima. La
   clave de firma release es la misma.
-- **1.0–1.9 debug → 1.10 debug:** instala
-  `Notas-1.10-debug.apk` encima. La clave de debug es la misma.
+- **1.0–1.11 debug → 1.12 debug:** instala
+  `Notas-1.12-debug.apk` encima. La clave de debug es la misma.
 - **Debug → release o release → debug:** las firmas son distintas. Exporta las
   notas a JSON, desinstala, instala la otra versión e importa el JSON.
 
@@ -273,8 +323,8 @@ anterior, la app ya no se instala porque desde la 1.10 requiere Android 16.
 Por ADB:
 
 ```bash
-adb install -r Notas-1.10-debug.apk   # conserva datos si venías de debug
-adb install -r Notas-1.10.apk         # solo si la firma release coincide
+adb install -r Notas-1.12-debug.apk   # conserva datos si venías de debug
+adb install -r Notas-1.12.apk         # solo si la firma release coincide
 ```
 
 ### Dictado por voz
@@ -383,18 +433,22 @@ sobre el bloqueo:
 2. En **Segundo plano**, quita las restricciones de batería.
 3. En HyperOS, activa **Inicio automático** y revisa **Permisos de HyperOS**:
    «Mostrar ventanas emergentes» y «Mostrar en pantalla de bloqueo».
-4. Android 13 o superior pedirá permiso de notificaciones la primera vez que
-   crees un recordatorio.
+4. Android pedirá permiso de notificaciones la primera vez que crees un
+   recordatorio.
 5. Pulsa **«Probar alarma en 10 segundos»**, bloquea el teléfono y comprueba que
-   se enciende la pantalla, suena el tono y aparece el mensaje.
+   se enciende la pantalla, suena el tono y aparece el mensaje. El tono dura 10
+   minutos, descansa 5 y se repite hasta que pulses **Detener alarma** o **Abrir
+   nota**.
 
 El aviso usa el **tono de alarma del sistema** con `USAGE_ALARM`, no el sonido
-habitual de notificación. La notificación tiene importancia alta, categoría de
-alarma, vibración larga y visibilidad pública en la pantalla de bloqueo. La
-pantalla de alarma se mantiene encendida hasta que pulses **Detener alarma** o
-**Abrir nota**. Android reproduce el tono una vez; no es un servicio de alarma
-continua. Si el teléfono está en silencio o el canal está bloqueado, el aviso
-puede no sonar.
+habitual de notificación. Ese tono se elige según la categoría de la nota, y las
+notas sin categoría usan el predeterminado. El servicio en primer plano reproduce
+el tono en bucle durante 10 minutos, lo pausa 5 y vuelve a empezar. La
+notificación tiene importancia alta, categoría de alarma, vibración larga,
+visibilidad pública en la pantalla de bloqueo y acciones para abrir la nota o
+detener la alarma. La pantalla de alarma se mantiene encendida hasta que pulses
+uno de esos botones. Si el teléfono está en silencio o el canal está bloqueado, el
+aviso puede no sonar.
 
 Sin alarma exacta el aviso sigue funcionando, pero Android puede retrasarlo unos
 minutos para ahorrar batería.
@@ -450,8 +504,9 @@ sdk.dir=C\:\\Users\\tu-usuario\\AppData\\Local\\Android\\Sdk
 
 Las pruebas cubren el intérprete de fechas habladas, la categoría dictada, el
 cálculo de la próxima ocurrencia de los recordatorios repetidos, la
-normalización de categorías y el parseo de la respuesta de la IA. La 1.10
-tiene 55 pruebas unitarias.
+normalización de categorías, la asignación de sonidos por categoría, el estado
+completada, el ciclo 10/5 de la alarma y el parseo de la respuesta de la IA.
+La 1.12 tiene 67 pruebas unitarias.
 
 ## Firma release
 
@@ -493,17 +548,21 @@ app/src/main/java/com/miking/notas/
 │   ├── DeepSeekClient.kt        # Cliente HTTP de la API de DeepSeek
 │   └── SecretStore.kt           # API key cifrada con AES-GCM en el AndroidKeyStore
 ├── data/
-│   ├── Note.kt                  # Modelo (category, reminderAt y repeatDays) + JSON
+│   ├── Note.kt                  # Modelo (completed, category, reminderAt y repeatDays) + JSON
 │   ├── CategoryNames.kt         # Limpieza, deduplicado y orden de categorías
+│   ├── CategoryAlarmSounds.kt   # Tonos de alarma del sistema y sonido por categoría
+│   ├── CategorySoundPlan.kt     # Reparto de tonos distintos entre categorías
 │   ├── ReminderRepeat.kt        # Días ISO, próxima ocurrencia y ocurrencias por día
 │   ├── NotesRepository.kt       # Guardado atómico, exportar e importar
-│   └── SettingsStore.kt         # Tema, fondo, categorías, orden y ajustes de IA
+│   └── SettingsStore.kt         # Tema, fondo, categorías, sonidos, orden y ajustes de IA
 ├── reminders/
+│   ├── AlarmCycle.kt            # Ciclo de 10 minutos sonando y 5 en silencio
 │   ├── ReminderScheduler.kt     # AlarmManager, exactas/inexactas y cancelación
-│   ├── ReminderReceiver.kt      # Notifica y reprograma la siguiente repetición
+│   ├── ReminderReceiver.kt      # Inicia la alarma y reprograma la siguiente repetición
+│   ├── ReminderAlarmService.kt  # Servicio en primer plano, audio en bucle y WakeLock
 │   ├── ReminderBootReceiver.kt  # Reprograma tras reinicio/actualización/hora
 │   ├── ReminderAlarmActivity.kt # Pantalla completa, enciende display y muestra la nota
-│   └── ReminderNotifications.kt # Canal, permisos y contenido de la notificación
+│   └── ReminderNotifications.kt # Canal silencioso, permisos y acciones del aviso
 └── ui/
     ├── NotesApp.kt              # Listado, búsqueda, categorías, cuadrícula y pestañas
     ├── AiAssistantScreen.kt     # Dictado con IA, vista previa y preguntas
@@ -523,7 +582,10 @@ app/src/main/java/com/miking/notas/
 app/src/test/java/com/miking/notas/
 ├── ai/AiModelsTest.kt           # Parseo del plan y de la respuesta de la IA
 ├── data/CategoryNamesTest.kt    # Limpieza, duplicados, orden y resolución
+├── data/CategorySoundPlanTest.kt # Reparto de tonos distintos por categoría
+├── data/NoteCompletionTest.kt   # Estado completada y JSON compatible
 ├── data/ReminderRepeatTest.kt   # Pruebas de próxima ocurrencia y días repetidos
+├── reminders/AlarmCycleTest.kt  # Ciclo 10/5 y repetición indefinida
 ├── ui/SpokenReminderParserTest.kt # Pruebas unitarias del intérprete de fechas
 └── ui/SpokenCategoryParserTest.kt # Pruebas de la categoría dictada
 ```
@@ -541,6 +603,12 @@ para mantener pequeño el APK.
   sin distinguir mayúsculas o el nombre limpio para una categoría nueva.
   `SettingsStore` guarda la lista en el `StringSet` `categories` de
   `notas_settings`.
+- El sonido de cada categoría se guarda como un objeto JSON en
+  `category_alarm_sounds` (`categoría → URI`). `CategoryAlarmSounds` consulta los
+  tonos de `RingtoneManager.TYPE_ALARM`; `planCategorySounds()` conserva los
+  elegidos y reparte los libres sin repetirlos. Si faltan tonos, usa el
+  predeterminado del sistema. La edición se hace con el selector de tonos de
+  alarma desde **Ajustes → Categorías**.
 - Al arrancar y al importar, las categorías que aparecen en las notas se añaden a
   la lista de ajustes. Al eliminar una categoría se quita de las notas afectadas
   sin cambiar su fecha de edición.
@@ -563,6 +631,10 @@ para mantener pequeño el APK.
   recordatorio. `repeatDays` es un `Set<Int>` con días ISO (1 = lunes, 7 =
   domingo). Vacío significa una sola vez. Las notas antiguas se leen sin el campo
   nuevo y se interpretan como una sola vez.
+- `Note.completed` es `false` por defecto y solo se escribe en el JSON cuando es
+  `true`. `Note.nextReminderAt()` y `Note.reminderAtOn()` devuelven `null` para
+  notas completadas, así que no se programan alarmas ni aparecen en el
+  calendario. Al desmarcarlas se vuelve a llamar a `ReminderScheduler.schedule()`.
 - `ReminderRepeat.nextOccurrence()` calcula la próxima alarma: para una nota de
   una sola vez devuelve `reminderAt` si es futura; para una repetida combina la
   hora original con el siguiente día seleccionado. `occurrenceOn()` devuelve la
@@ -576,25 +648,34 @@ para mantener pequeño el APK.
   manual desde Ajustes.
 - Cada nota tiene un `PendingIntent` inmutable identificado por su ID; al cambiar
   la hora o los días se reemplaza y al borrar la nota se cancela.
-- `ReminderReceiver` comprueba que la nota exista y conserve su recordatorio antes
-  de publicar la notificación. Si la nota se repite, calcula la siguiente
-  ocurrencia (sin repetir la que acaba de sonar) y programa la próxima alarma.
-  También atiende la alarma de prueba.
+- `ReminderReceiver` comprueba que la nota exista, no esté completada y conserve
+  su recordatorio antes de iniciar `ReminderAlarmService`. Si la nota se repite,
+  calcula la siguiente ocurrencia (sin repetir la que acaba de sonar) y programa
+  la próxima alarma. También atiende la alarma de prueba y la acción **Detener
+  alarma** de la notificación.
 - `ReminderPickerDialog` reúne el `DatePicker` de Material 3, el selector de hora
   y los chips de repetición. El valor inicial es **Una vez**; las opciones
   rápidas son todos los días, lunes a viernes, fin de semana y personalizado.
 - `CalendarScreens.kt` pinta un mes con puntos en los días con recordatorios y
   una agenda diaria. Las dos vistas abren la nota al tocar una ocurrencia.
-- El canal de notificación es `recordatorios_alarma_v1` (importancia alta). Se
-  crea al arrancar o al publicar el primer aviso. Android no permite cambiar el
-  sonido de un canal ya creado, por eso la 1.4 usa un ID nuevo y elimina el canal
-  antiguo `recordatorios`.
-- El canal usa `RingtoneManager.TYPE_ALARM` (con
-  `Settings.System.DEFAULT_ALARM_ALERT_URI` como respaldo),
-  `AudioAttributes.USAGE_ALARM`, patrón de vibración largo, luz y visibilidad
-  pública en la pantalla de bloqueo.
-- La notificación usa `CATEGORY_ALARM`, prioridad máxima, icono monocromo propio
-  y abre la nota mediante un extra en `MainActivity`.
+- El canal de notificación es `recordatorios_alarma_v2` (importancia alta, sin
+  sonido). Se crea al arrancar o al publicar el primer aviso; se eliminan los
+  canales antiguos `recordatorios_alarma_v1` y `recordatorios`. El tono lo
+  reproduce el servicio para poder mantener el ciclo 10/5 sin que el canal
+  duplique el audio al publicar la notificación.
+- `ReminderAlarmService` es un servicio en primer plano de tipo `mediaPlayback`.
+  Usa `MediaPlayer` con `isLooping` y `AudioAttributes.USAGE_ALARM`. El tono se
+  resuelve con `CategoryAlarmSounds.resolveUri()` según `Note.category`; las
+  notas sin categoría y la prueba de alarma usan `DEFAULT_ALARM_ALERT_URI`. Si el
+  URI guardado no se puede abrir, recurre al tono predeterminado. Mantiene un
+  `WakeLock` parcial y pide foco de audio mientras suena.
+- `AlarmCycle` define 10 minutos de tono (`RING_DURATION_MS`), 5 de pausa
+  (`PAUSE_DURATION_MS`) y 15 de ciclo total. El servicio calcula la fase con el
+  tiempo transcurrido, así que el ciclo se repite hasta `stopSelf()`.
+- La notificación usa `CATEGORY_ALARM`, prioridad máxima, `setOngoing(true)`,
+  icono monocromo propio y acciones **Abrir nota** y **Detener alarma**. El
+  contenido y la acción de abrir llevan a `MainActivity`; el servicio se detiene
+  allí para que abrir la app también corte la alarma.
 - `ReminderNotifications` añade `setFullScreenIntent` cuando
   `NotificationManager.canUseFullScreenIntent()` lo permite. En Android 14+ se
   declara `USE_FULL_SCREEN_INTENT` y Ajustes ofrece el acceso especial para
@@ -602,10 +683,12 @@ para mantener pequeño el APK.
 - `ReminderAlarmActivity` es una actividad Compose independiente, con
   `showWhenLocked`, `turnScreenOn` y `FLAG_KEEP_SCREEN_ON`. Se lanza en una tarea
   propia, muestra el título, la hora del aviso, el texto de la nota y, si se
-  repite, los días seleccionados. Ofrece **Abrir nota** y **Detener alarma**. Al
-  cerrar cancela la notificación.
-- `showTest()` publica una notificación de prueba en el mismo canal y también
-  abre la pantalla completa de prueba.
+  repite, los días seleccionados. Ofrece **Abrir nota** y **Detener alarma**, y
+  bloquea el botón Atrás. Al detener la alarma llama a `ReminderAlarmService`,
+  cancela la notificación y termina. Un receptor local escucha
+  `ACTION_STOPPED` para cerrarse si la alarma se detiene desde la notificación.
+- `showTest()` inicia el mismo servicio con `EXTRA_TEST_MODE`, así que la prueba
+  reproduce el ciclo completo y muestra la pantalla de alarma.
 - `scheduleTest()` programa una alarma real en 10 segundos con
   `ACTION_TEST_REMINDER`; permite comprobar sonido, pantalla y mensaje con la app
   cerrada y el teléfono bloqueado.
@@ -637,8 +720,8 @@ para mantener pequeño el APK.
 
 - Todo se guarda en el almacenamiento privado de la app. No se piden permisos de
   almacenamiento.
-- Las categorías y el fondo de la vista se guardan en SharedPreferences; no se
-  envían a ningún servicio.
+- Las categorías, sus sonidos y el fondo de la vista se guardan en
+  SharedPreferences; no se envían a ningún servicio.
 - La app declara el permiso `INTERNET`, pero **solo lo usa el asistente de IA**
   y únicamente cuando tú lo activas. Sin IA activada no sale ningún dato.
 - Al usar el asistente, el texto que dictas y las notas seleccionadas como

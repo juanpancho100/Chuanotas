@@ -9,6 +9,9 @@ import java.util.UUID
  *
  * [category] es el nombre de la categoría, o vacío si no tiene.
  * [color] es el índice de la paleta (0 = color del tema, 1..5 = pasteles).
+ * [pinned] fija la nota al principio del listado.
+ * [completed] marca la nota como terminada; se muestra tachada y no programa
+ * recordatorios mientras esté completada.
  * [reminderAt] es la marca de tiempo del recordatorio, o null si no tiene.
  * [repeatDays] contiene los días ISO (1 = lunes, 7 = domingo) en los que se
  * repite. Vacío significa que suena una sola vez.
@@ -20,6 +23,7 @@ data class Note(
     val category: String = "",
     val color: Int = 0,
     val pinned: Boolean = false,
+    val completed: Boolean = false,
     val reminderAt: Long? = null,
     val repeatDays: Set<Int> = emptySet(),
     val createdAt: Long = System.currentTimeMillis(),
@@ -38,6 +42,7 @@ data class Note(
         CategoryNames.clean(category)?.let { put("category", it) }
         put("color", color)
         put("pinned", pinned)
+        if (completed) put("completed", true)
         if (reminderAt != null) put("reminderAt", reminderAt)
         if (reminderAt != null && repeatDays.isNotEmpty()) {
             put(
@@ -66,6 +71,7 @@ data class Note(
                 category = CategoryNames.clean(json.optString("category")).orEmpty(),
                 color = json.optInt("color", 0).coerceIn(0, 5),
                 pinned = json.optBoolean("pinned", false),
+                completed = json.optBoolean("completed", false),
                 reminderAt = reminderAt,
                 repeatDays = if (reminderAt == null) {
                     emptySet()

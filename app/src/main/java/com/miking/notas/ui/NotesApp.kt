@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -71,7 +73,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -166,6 +171,7 @@ fun NotasApp(
             onSortMode = vm::setSortMode,
             onBackgroundStyle = vm::setBackgroundStyle,
             onAddCategory = vm::addCategory,
+            onCategorySound = vm::setCategorySound,
             onDeleteCategory = vm::deleteCategory,
             onAiEnabled = vm::setAiEnabled,
             onAiModel = vm::setAiModel,
@@ -200,6 +206,7 @@ fun NotasApp(
             onTitleChange = vm::updateTitle,
             onBodyChange = vm::updateBody,
             onTogglePin = vm::togglePinEditor,
+            onToggleCompleted = vm::toggleCompletedEditor,
             onColorChange = vm::setColor,
             categories = settings.categories,
             onCategoryChange = vm::setCategory,
@@ -237,6 +244,7 @@ fun NotasApp(
             onOpenAi = { showAi = true },
             onOpenNote = vm::openNote,
             onTogglePin = vm::togglePin,
+            onToggleCompleted = vm::toggleCompleted,
             onDelete = vm::delete,
             onOpenSettings = { showSettings = true },
             selectedTab = selectedTab,
@@ -271,6 +279,7 @@ private fun NotesListScreen(
     onOpenAi: () -> Unit,
     onOpenNote: (Note) -> Unit,
     onTogglePin: (Note) -> Unit,
+    onToggleCompleted: (Note) -> Unit,
     onDelete: (Note) -> Unit,
     onOpenSettings: () -> Unit,
     selectedTab: MainTab,
@@ -515,6 +524,7 @@ private fun NotesListScreen(
                         modifier = Modifier.animateItem(),
                         onClick = { onOpenNote(note) },
                         onTogglePin = { onTogglePin(note) },
+                        onToggleCompleted = { onToggleCompleted(note) },
                         onDelete = { pendingDelete = note },
                     )
                 }
@@ -743,6 +753,7 @@ private fun NoteCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onTogglePin: () -> Unit,
+    onToggleCompleted: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val shape = RoundedCornerShape(22.dp)
@@ -759,12 +770,27 @@ private fun NoteCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
-            modifier = Modifier.padding(start = 18.dp, end = 6.dp, top = 16.dp, bottom = 14.dp),
+            modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 10.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.Top,
         ) {
+            Checkbox(
+                checked = note.completed,
+                onCheckedChange = { onToggleCompleted() },
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .semantics {
+                        contentDescription = if (note.completed) {
+                            "Marcar como pendiente"
+                        } else {
+                            "Marcar como completada"
+                        }
+                    },
+            )
+
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 4.dp),
+                    .padding(end = 4.dp, top = 10.dp),
             ) {
                 if (note.category.isNotBlank()) {
                     Text(
@@ -782,6 +808,12 @@ private fun NoteCard(
                     text = note.displayTitle,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    textDecoration = if (note.completed) TextDecoration.LineThrough else null,
+                    color = if (note.completed) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -791,6 +823,7 @@ private fun NoteCard(
                     Text(
                         text = note.preview,
                         style = MaterialTheme.typography.bodyMedium,
+                        textDecoration = if (note.completed) TextDecoration.LineThrough else null,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
@@ -805,6 +838,21 @@ private fun NoteCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (note.completed) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "Completada",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     if (note.pinned) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
@@ -869,6 +917,24 @@ private fun NoteCard(
                         onClick = {
                             menuOpen = false
                             onTogglePin()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (note.completed) {
+                                    "Marcar como pendiente"
+                                } else {
+                                    "Marcar como completada"
+                                },
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Filled.Check, contentDescription = null)
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onToggleCompleted()
                         },
                     )
                     DropdownMenuItem(
