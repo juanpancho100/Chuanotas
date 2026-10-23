@@ -96,6 +96,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NotasApp(
     vm: NotesViewModel = viewModel(),
+    financeVm: FinanceViewModel = viewModel(),
     pendingNoteId: String? = null,
     onPendingNoteHandled: () -> Unit = {},
 ) {
@@ -229,6 +230,16 @@ fun NotasApp(
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
             onOpenNote = vm::openNote,
+        )
+
+        selectedTab == MainTab.FINANCE -> FinanceScreen(
+            vm = financeVm,
+            aiEnabled = settings.aiEnabled && aiApiKey.isNotBlank(),
+            aiApiKey = aiApiKey,
+            aiModel = settings.aiModel,
+            onOpenSettings = { showSettings = true },
+            selectedTab = selectedTab,
+            onTabSelected = { selectedTab = it },
         )
 
         else -> NotesListScreen(

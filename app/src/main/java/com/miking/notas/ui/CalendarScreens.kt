@@ -43,7 +43,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,7 +72,24 @@ enum class MainTab(
     NOTES("Notas", Icons.Filled.Home),
     CALENDAR("Calendario", Icons.Filled.DateRange),
     AGENDA("Hoy", Icons.AutoMirrored.Filled.List),
+    FINANCE("Finanzas", WalletIcon),
 }
+
+/** Cartera (Material «account_balance_wallet»); el set básico de iconos no la incluye. */
+private val WalletIcon: ImageVector = ImageVector.Builder(
+    name = "Wallet",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).addPath(
+    pathData = addPathNodes(
+        "M21,18v1c0,1.1 -0.9,2 -2,2L5,21c-1.11,0 -2,-0.9 -2,-2L3,5c0,-1.1 0.89,-2 2,-2h14c1.1,0 2,0.9 2,2v1h-9" +
+            "c-1.11,0 -2,0.9 -2,2v8c0,1.1 0.89,2 2,2h9zM12,16h10L22,8L12,8v8zM16,13.5c-0.83,0 -1.5,-0.67 -1.5,-1.5" +
+            "s0.67,-1.5 1.5,-1.5 1.5,0.67 1.5,1.5 -0.67,1.5 -1.5,1.5z",
+    ),
+    fill = SolidColor(Color.Black),
+).build()
 
 @Composable
 internal fun MainNavigationBar(
